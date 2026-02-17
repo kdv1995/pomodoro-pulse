@@ -11,13 +11,8 @@ permissions:
 
 jobs:
   build:
-    name: Build DMG (${{ matrix.target }})
+    name: Build Universal DMG
     runs-on: macos-14
-    strategy:
-      fail-fast: false
-      matrix:
-        # Build both Apple Silicon and Intel DMGs.
-        target: [aarch64-apple-darwin, x86_64-apple-darwin]
     steps:
       - uses: actions/checkout@v4
 
@@ -28,8 +23,10 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Rust target
-        run: rustup target add ${{ matrix.target }}
+      - name: Install Rust targets (required for universal macOS)
+        run: |
+          rustup target add aarch64-apple-darwin
+          rustup target add x86_64-apple-darwin
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -41,7 +38,7 @@ jobs:
         run: node scripts/check_version.mjs "${GITHUB_REF_NAME#v}"
 
       - name: Build
-        run: npm run tauri build -- --target ${{ matrix.target }}
+        run: npm run tauri build -- --target universal-apple-darwin
 
       - name: Collect DMG
         run: |
@@ -51,7 +48,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dmg-${{ matrix.target }}
+          name: dmg-universal-apple-darwin
           path: release-assets/*.dmg
 
   release:
