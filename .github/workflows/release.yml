@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      - "v*.*.*-*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build DMG (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Build both Apple Silicon and Intel DMGs.
+        os: [macos-14, macos-13]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - run: npm ci
+
+      - name: Verify versions match tag
+        run: node scripts/check_version.mjs "${GITHUB_REF_NAME#v}"
+
+      - name: Build
+        run: npm run tauri build
+
+      - name: Collect DMG
+        run: |
+          mkdir -p release-assets
+          ls -la src-tauri/target/release/bundle/dmg
+          cp -v src-tauri/target/release/bundle/dmg/*.dmg release-assets/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg-${{ matrix.os }}
+          path: release-assets/*.dmg
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: List assets
+        run: find release-assets -type f -print
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/**/*.dmg
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+

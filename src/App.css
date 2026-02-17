@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Apple-inspired palette (from ../landing-pomodoro) */
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI",
+      Roboto, system-ui, sans-serif;
+    --background: 240 11.1% 96.5%; /* #f5f5f7 */
+    --foreground: 240 3.3% 11.8%; /* #1d1d1f */
+    --card: 0 0% 100%;
+    --card-foreground: 240 3.3% 11.8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 3.3% 11.8%;
+    --primary: 210 100% 44.5%; /* #0071e3 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5.9% 83.3%; /* #d2d2d7 */
+    --secondary-foreground: 240 3.3% 11.8%;
+    --muted: 240 11.1% 96.5%; /* #f5f5f7 */
+    --muted-foreground: 240 2.1% 53.5%; /* #86868b */
+    --accent: 240 11.1% 96.5%;
+    --accent-foreground: 240 3.3% 11.8%;
+    --destructive: 3 100% 61.4%; /* #ff453a */
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 5.9% 83.3%;
+    --input: 240 5.9% 83.3%;
+    --ring: 210 100% 44.5%;
+    --radius: 0.5rem;
+    --chart-1: 210 100% 44.5%;
+    --chart-2: 135 63.6% 50.4%;
+    --chart-3: 36 100% 52%;
+    --chart-4: 280 85.4% 65.1%;
+    --chart-5: 240 2.1% 53.5%;
+  }
+
+  .dark {
+    --background: 240 3.3% 11.8%;
+    --foreground: 0 0% 98%;
+    --card: 240 3.3% 14.5%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 3.3% 14.5%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 210 100% 55%;
+    --primary-foreground: 240 3.3% 11.8%;
+    --secondary: 240 3.7% 20%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 20%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 20%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 3 100% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 20%;
+    --input: 240 3.7% 20%;
+    --ring: 210 100% 55%;
+    --chart-1: 210 100% 55%;
+    --chart-2: 135 63.6% 50.4%;
+    --chart-3: 36 100% 52%;
+    --chart-4: 280 85.4% 65.1%;
+    --chart-5: 240 5% 64.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    @apply bg-background text-foreground;
+  }
+}
