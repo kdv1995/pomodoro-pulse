@@ -12,6 +12,13 @@ permissions:
 jobs:
   build:
     name: Build ${{ matrix.name }}
+    env:
+      MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
     strategy:
       fail-fast: false
       matrix:
@@ -76,10 +83,7 @@ jobs:
         run: npm run tauri build -- --target universal-apple-darwin
 
       - name: Import macOS signing certificate
-        if: matrix.platform == 'macos' && secrets.MACOS_CERT_P12 != '' && secrets.MACOS_CERT_PASSWORD != ''
-        env:
-          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
-          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        if: matrix.platform == 'macos' && env.MACOS_CERT_P12 != '' && env.MACOS_CERT_PASSWORD != ''
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
@@ -96,17 +100,16 @@ jobs:
           security unlock-keychain -p "" "$KEYCHAIN"
 
       - name: Sign + notarize macOS DMG (if secrets configured)
-        if: matrix.platform == 'macos' && secrets.MACOS_CERT_P12 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.MACOS_CODESIGN_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_APP_PASSWORD != ''
-        env:
-          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        if: matrix.platform == 'macos' && env.MACOS_CERT_P12 != '' && env.MACOS_CERT_PASSWORD != '' && env.MACOS_CODESIGN_IDENTITY != '' && env.APPLE_ID != '' && env.APPLE_TEAM_ID != '' && env.APPLE_APP_PASSWORD != ''
         run: |
           set -euo pipefail
 
-          DMG_IN="$(ls -1 src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -n 1)"
+          DMG_IN="$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print | head -n 1)"
           echo "Input DMG: $DMG_IN"
+          if [[ -z "${DMG_IN:-}" ]]; then
+            echo "No DMG found"
+            exit 1
+          fi
 
           WORK="$(mktemp -d)"
           MOUNT="$(mktemp -d)"
@@ -143,8 +146,8 @@ jobs:
           xcrun stapler staple "$DMG_OUT"
 
       - name: Notarization skipped notice
-        if: matrix.platform == 'macos' && (secrets.MACOS_CODESIGN_IDENTITY == '' || secrets.APPLE_ID == '' || secrets.APPLE_TEAM_ID == '' || secrets.APPLE_APP_PASSWORD == '' || secrets.MACOS_CERT_P12 == '' || secrets.MACOS_CERT_PASSWORD == '')
-        run: echo "macOS signing/notarization skipped: missing required secrets."
+        if: matrix.platform == 'macos' && (env.MACOS_CODESIGN_IDENTITY == '' || env.APPLE_ID == '' || env.APPLE_TEAM_ID == '' || env.APPLE_APP_PASSWORD == '' || env.MACOS_CERT_P12 == '' || env.MACOS_CERT_PASSWORD == '')
+        run: 'echo "macOS signing/notarization skipped: missing required secrets."'
 
       - name: Build Windows
         if: matrix.platform == 'windows'
