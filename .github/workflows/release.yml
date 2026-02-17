@@ -11,13 +11,13 @@ permissions:
 
 jobs:
   build:
-    name: Build DMG (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Build DMG (${{ matrix.target }})
+    runs-on: macos-14
     strategy:
       fail-fast: false
       matrix:
         # Build both Apple Silicon and Intel DMGs.
-        os: [macos-14, macos-13]
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
     steps:
       - uses: actions/checkout@v4
 
@@ -27,6 +27,9 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -38,7 +41,7 @@ jobs:
         run: node scripts/check_version.mjs "${GITHUB_REF_NAME#v}"
 
       - name: Build
-        run: npm run tauri build
+        run: npm run tauri build -- --target ${{ matrix.target }}
 
       - name: Collect DMG
         run: |
@@ -48,7 +51,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dmg-${{ matrix.os }}
+          name: dmg-${{ matrix.target }}
           path: release-assets/*.dmg
 
   release:
@@ -70,4 +73,3 @@ jobs:
             release-assets/**/*.dmg
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
-
