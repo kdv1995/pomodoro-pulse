@@ -30,7 +30,10 @@
   "bundle": {
     "active": true,
     "targets": [
-      "dmg"
+      "dmg",
+      "nsis",
+      "appimage",
+      "deb"
     ],
     "category": "Productivity",
     "shortDescription": "Personal pomodoro tracker with analytics",
