@@ -450,6 +450,7 @@ export default function App() {
                           void timerSetContext({ projectId: next, tagIds: selectedTagIds })
                             .then(() => setContextDirty(false))
                             .catch((error) => {
+                              setContextDirty(false);
                               setStatusMessage(String(error));
                             });
                         }}
@@ -491,6 +492,7 @@ export default function App() {
                                   void timerSetContext({ projectId: selectedProjectId, tagIds: next })
                                     .then(() => setContextDirty(false))
                                     .catch((error) => {
+                                      setContextDirty(false);
                                       setStatusMessage(String(error));
                                     });
                                 } else {
@@ -500,6 +502,7 @@ export default function App() {
                                   void timerSetContext({ projectId: selectedProjectId, tagIds: next })
                                     .then(() => setContextDirty(false))
                                     .catch((error) => {
+                                      setContextDirty(false);
                                       setStatusMessage(String(error));
                                     });
                                 }

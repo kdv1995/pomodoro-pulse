@@ -978,7 +978,7 @@ fn remote_html() -> String {
     <script>
 	      const qs = new URLSearchParams(location.search);
 	      const STORAGE_KEY = "pomodoro_remote_token";
-	      const legacyToken = qs.get("token") || "";
+	      const legacyToken = (qs.get("token") || "").trim();
 	      let token = localStorage.getItem(STORAGE_KEY) || "";
 
       const auth = document.getElementById("auth");
@@ -995,11 +995,11 @@ fn remote_html() -> String {
       function showMain() { auth.style.display = "none"; main.style.display = "block"; }
       function showAuth() { auth.style.display = "block"; main.style.display = "none"; }
 
-	      if (legacyToken && !token) {
+	      if (legacyToken) {
+	        // Always allow ?token= to override stored token.
+	        // This supports quick recovery when the desktop token is regenerated.
 	        token = legacyToken;
 	        localStorage.setItem(STORAGE_KEY, token);
-	        cleanUrl();
-	      } else if (legacyToken) {
 	        cleanUrl();
 	      }
 
@@ -1015,16 +1015,24 @@ fn remote_html() -> String {
 	        refresh();
 	      });
 
-	      const clearToken = document.createElement("button");
-	      clearToken.textContent = "Clear token";
-	      clearToken.style.marginTop = "10px";
-	      clearToken.addEventListener("click", () => {
+	      function clearStoredToken() {
 	        localStorage.removeItem(STORAGE_KEY);
 	        token = "";
 	        tokenInput.value = "";
 	        showAuth();
-	      });
-	      auth.appendChild(clearToken);
+	      }
+
+	      const clearTokenAuth = document.createElement("button");
+	      clearTokenAuth.textContent = "Clear token";
+	      clearTokenAuth.style.marginTop = "10px";
+	      clearTokenAuth.addEventListener("click", clearStoredToken);
+	      auth.appendChild(clearTokenAuth);
+
+	      const clearTokenMain = document.createElement("button");
+	      clearTokenMain.textContent = "Change token";
+	      clearTokenMain.style.marginTop = "10px";
+	      clearTokenMain.addEventListener("click", clearStoredToken);
+	      main.appendChild(clearTokenMain);
 
       async function api(path, method) {
         const res = await fetch(path, {
@@ -1049,17 +1057,25 @@ fn remote_html() -> String {
         return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
       }
 
-      async function refresh() {
-        if (!token) return;
-        try {
-          const st = await api("/api/state", "GET");
+	      async function refresh() {
+	        if (!token) return;
+	        try {
+	          const st = await api("/api/state", "GET");
           document.getElementById("phase").textContent = phaseLabel(st.phase);
           document.getElementById("time").textContent = fmt(st.remainingSeconds);
           document.getElementById("status").textContent = st.isRunning ? "Running" : "Paused";
-        } catch (e) {
-          document.getElementById("status").textContent = String(e.message || e);
-        }
-      }
+	        } catch (e) {
+	          const msg = String(e.message || e);
+	          document.getElementById("status").textContent = msg;
+	          if (msg.toLowerCase().includes("unauthorized")) {
+	            // If token is invalid/stale, immediately show auth flow.
+	            localStorage.removeItem(STORAGE_KEY);
+	            token = "";
+	            tokenInput.value = "";
+	            showAuth();
+	          }
+	        }
+	      }
 
       document.getElementById("toggle").addEventListener("click", async () => {
         try { await api("/api/toggle", "POST"); } finally { await refresh(); }
