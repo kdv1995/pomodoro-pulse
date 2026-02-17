@@ -74,6 +74,34 @@ Landing page:
 https://landing-pomodoro.vercel.app/
 ```
 
+## Community / Vibe Coding
+
+If you want to join and develop this open source project with me through vibe coding, you can connect via my socials below.
+
+### 💡 Для кого цей канал
+
+- якщо хочеш зайти в Web3
+- якщо використовуєш або хочеш використовувати AI в розробці
+- якщо будуєш продукти, а не просто "вчиш синтаксис"
+- якщо хочеш мислити як інженер, а не як туторiал-вотчер
+
+### 🔗 Лiнки
+
+- LinkedIn: https://www.linkedin.com/in/danyil-ku...
+- Telegram (код, iдеї та життя без меж): https://t.me/codebezmezh
+- TikTok (короткi формати й хардкорнi iнсайти): https://www.tiktok.com/@codebezmezh?_...
+- Discord (спiльнота): https://discord.gg/uQ6QwQsa
+- Twitch (лайв-кодинг i стрiми): https://www.twitch.tv/codebezmezh
+- Email (стрiми, колаби, iдеї): tribeofdanel@gmail.com
+
+### 📌 Пiдписуйся, якщо тобi цiкаво
+
+- як створити Web3 токен або NFT-маркетплейс
+- як використовувати AI для розробникiв
+- як стати Fullstack-iнженером без меж
+
+Пiдписка + лайк = бiльше шипiнгу 🚀
+
 ## iPhone Remote Control (LAN)
 
 You can optionally control the timer from your iPhone using a local web page served by the desktop app.
