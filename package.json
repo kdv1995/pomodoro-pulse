@@ -1,15 +1,20 @@
 {
-  "name": "tauri-app",
+  "name": "pomodoro-pulse",
   "private": true,
   "version": "0.1.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:desktop": "npm run tauri build",
+    "build:windows": "npm run tauri build -- --bundles nsis",
+    "build:linux": "npm run tauri build -- --bundles appimage,deb",
+    "build:mac": "npm run tauri build -- --target universal-apple-darwin",
     "preview": "vite preview",
     "tauri": "tauri",
     "install:dmg": "./scripts/install_dmg.sh",
-    "build:install": "npm run tauri build && npm run install:dmg",
+    "build:mac:install": "npm run build:mac && npm run install:dmg",
+    "build:install": "npm run build:mac:install",
     "version:set": "node ./scripts/set_version.mjs",
     "version:check": "node ./scripts/check_version.mjs"
   },

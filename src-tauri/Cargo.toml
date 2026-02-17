@@ -1,5 +1,5 @@
 [package]
-name = "tauri-app"
+name = "pomodoro-pulse"
 version = "0.1.4"
 description = "Pomodoro analytics app"
 authors = ["you"]
