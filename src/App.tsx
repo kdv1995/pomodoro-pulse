@@ -58,6 +58,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 
 const DAY_SECONDS = 86_400;
 
@@ -72,6 +73,10 @@ function phaseLabel(phase: TimerPhase) {
     default:
       return phase;
   }
+}
+
+function toErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function playTone() {
@@ -190,7 +195,7 @@ export default function App() {
         setSelectedTagIds(nextState.currentTagIds ?? []);
       })
       .catch((error) => {
-        setStatusMessage(String(error));
+        reportActionError("Failed to load timer state.", error);
       });
   }, []);
 
@@ -248,7 +253,7 @@ export default function App() {
     }
 
     setupListeners().catch((error) => {
-      setStatusMessage(String(error));
+      reportActionError("Failed to subscribe to timer events.", error);
     });
 
     return () => {
@@ -269,6 +274,16 @@ export default function App() {
     ]);
   }
 
+  function reportActionError(title: string, error: unknown) {
+    const details = toErrorMessage(error);
+    setStatusMessage(details);
+    toast.error(title, {
+      description: details,
+      position: "top-center",
+      duration: 2500,
+    });
+  }
+
   async function onToggleTimer() {
     if (!timer) {
       return;
@@ -282,21 +297,33 @@ export default function App() {
 
       if (timer.isRunning) {
         next = await timerPause();
-      } else if (timer.startedAt) {
-        next = await timerResume({
-          projectId: selectedProjectId,
-          tagIds: selectedTagIds,
+        toast.success("Timer paused.", {
+          position: "top-center",
+          duration: 1500,
         });
       } else {
-        next = await timerStart({
-          projectId: selectedProjectId,
-          tagIds: selectedTagIds,
+        if (timer.startedAt) {
+          next = await timerResume({
+            projectId: selectedProjectId,
+            tagIds: selectedTagIds,
+          });
+        } else {
+          next = await timerStart({
+            projectId: selectedProjectId,
+            tagIds: selectedTagIds,
+          });
+        }
+
+        toast.success(next.phase === "focus" ? (timer.startedAt ? "Timer resumed." : "Timer started.") : "Break time started.", {
+          description: `Current phase: ${phaseLabel(next.phase)}`,
+          position: "top-center",
+          duration: 1500,
         });
       }
 
       setTimer(next);
     } catch (error) {
-      setStatusMessage(String(error));
+      reportActionError("Failed to update timer.", error);
     } finally {
       setActionBusy(false);
     }
@@ -310,8 +337,13 @@ export default function App() {
       const next = await timerSkip();
       setTimer(next);
       await refreshAll();
+      toast.success("Timer skipped.", {
+        description: `Next phase: ${phaseLabel(next.phase)}`,
+        position: "top-center",
+        duration: 1500,
+      });
     } catch (error) {
-      setStatusMessage(String(error));
+      reportActionError("Failed to skip timer.", error);
     } finally {
       setActionBusy(false);
     }
@@ -329,14 +361,22 @@ export default function App() {
       setSettingsDraft(updated);
       await queryClient.invalidateQueries({ queryKey: ["settings"] });
       setStatusMessage("Settings saved.");
+      toast.success("Settings saved.", {
+        position: "top-center",
+        duration: 1500,
+      });
     } catch (error) {
-      setStatusMessage(String(error));
+      reportActionError("Failed to save settings.", error);
     }
   }
 
   async function onAddProject() {
     const name = newProjectName.trim();
     if (!name) {
+      toast.info("Project name is required.", {
+        position: "top-center",
+        duration: 1500,
+      });
       return;
     }
 
@@ -349,14 +389,23 @@ export default function App() {
       });
       setNewProjectName("");
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Project added.", {
+        description: name,
+        position: "top-center",
+        duration: 1500,
+      });
     } catch (error) {
-      setStatusMessage(String(error));
+      reportActionError("Failed to add project.", error);
     }
   }
 
   async function onAddTag() {
     const name = newTagName.trim();
     if (!name) {
+      toast.info("Tag name is required.", {
+        position: "top-center",
+        duration: 1500,
+      });
       return;
     }
 
@@ -365,8 +414,13 @@ export default function App() {
       await tagsUpsert({ name });
       setNewTagName("");
       await queryClient.invalidateQueries({ queryKey: ["tags"] });
+      toast.success("Tag added.", {
+        description: name,
+        position: "top-center",
+        duration: 1500,
+      });
     } catch (error) {
-      setStatusMessage(String(error));
+      reportActionError("Failed to add tag.", error);
     }
   }
 
@@ -375,8 +429,12 @@ export default function App() {
     try {
       await exportCsv(analyticsRange);
       setStatusMessage("CSV export saved.");
+      toast.success("CSV exported.", {
+        position: "top-center",
+        duration: 1500,
+      });
     } catch (error) {
-      setStatusMessage(String(error));
+      reportActionError("Failed to export CSV.", error);
     }
   }
 
@@ -385,15 +443,20 @@ export default function App() {
     try {
       await exportJson(analyticsRange);
       setStatusMessage("JSON export saved.");
+      toast.success("JSON exported.", {
+        position: "top-center",
+        duration: 1500,
+      });
     } catch (error) {
-      setStatusMessage(String(error));
+      reportActionError("Failed to export JSON.", error);
     }
   }
 
   async function onResetAllData() {
-    const confirmed = window.confirm(
+    const confirmed = await window.confirm(
       "This permanently deletes all sessions, projects, tags, and resets settings. Continue?",
     );
+    console.log(confirmed)
     if (!confirmed) {
       return;
     }
@@ -409,8 +472,12 @@ export default function App() {
       setSelectedTagIds(result.timer.currentTagIds ?? []);
       await refreshAll();
       setStatusMessage("All app data has been reset.");
+      toast.success("All app data has been reset.", {
+        position: "top-center",
+        duration: 1800,
+      });
     } catch (error) {
-      setStatusMessage(String(error));
+      reportActionError("Failed to reset app data.", error);
     } finally {
       setActionBusy(false);
     }
@@ -466,7 +533,7 @@ export default function App() {
                           const next = value === "no-project" ? null : Number(value);
                           setSelectedProjectId(next);
                           void timerSetContext({ projectId: next, tagIds: selectedTagIds }).catch((error) =>
-                            setStatusMessage(String(error)),
+                            reportActionError("Failed to update timer context.", error),
                           );
                         }}
                         disabled={contextLocked}
@@ -504,13 +571,13 @@ export default function App() {
                                   const next = selectedTagIds.filter((id) => id !== tag.id);
                                   setSelectedTagIds(next);
                                   void timerSetContext({ projectId: selectedProjectId, tagIds: next }).catch((error) =>
-                                    setStatusMessage(String(error)),
+                                    reportActionError("Failed to update timer context.", error),
                                   );
                                 } else {
                                   const next = [...selectedTagIds, tag.id];
                                   setSelectedTagIds(next);
                                   void timerSetContext({ projectId: selectedProjectId, tagIds: next }).catch((error) =>
-                                    setStatusMessage(String(error)),
+                                    reportActionError("Failed to update timer context.", error),
                                   );
                                 }
                               }}
@@ -632,7 +699,8 @@ export default function App() {
                     <p className="text-sm text-muted-foreground">Delete all sessions, projects, tags, and restore default settings.</p>
                   </div>
                   <div className="p-6 pt-0">
-                    <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 h-9 px-4 py-2" onClick={onResetAllData} disabled={actionBusy}>
+                    <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 h-9 px-4 py-2" 
+                      onClick={onResetAllData} disabled={actionBusy}>
                       {actionBusy ? "Working..." : "Reset Everything"}
                     </button>
                   </div>
