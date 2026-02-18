@@ -15,10 +15,11 @@ export default function TitleBar() {
     const toggleMaximize = async () => {
         const win = getCurrentWindow();
         const max = await win.isMaximized();
+        console.log(123)
         if (max) {
-            win.unmaximize();
+            await win.unmaximize();
         } else {
-            win.maximize();
+            await win.maximize();
         }
     };
     const close = () => getCurrentWindow().hide(); // Using hide as per plan/existing behavior

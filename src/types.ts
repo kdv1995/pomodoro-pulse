@@ -1,10 +1,12 @@
 export type TimerPhase = "focus" | "short_break" | "long_break";
+export type AppTheme = "light" | "dark";
 
 export interface AppSettings {
   focusMin: number;
   shortBreakMin: number;
   longBreakMin: number;
   longBreakEvery: number;
+  theme: AppTheme;
   soundEnabled: boolean;
   notificationsEnabled: boolean;
   remoteControlEnabled: boolean;
@@ -17,6 +19,7 @@ export interface AppSettingsPatch {
   shortBreakMin?: number;
   longBreakMin?: number;
   longBreakEvery?: number;
+  theme?: AppTheme;
   soundEnabled?: boolean;
   notificationsEnabled?: boolean;
   remoteControlEnabled?: boolean;

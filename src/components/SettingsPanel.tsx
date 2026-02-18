@@ -80,6 +80,21 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                     <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
                             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                Dark Mode
+                            </label>
+                            <p className="text-xs text-muted-foreground">
+                                Switch between light and dark application theme.
+                            </p>
+                        </div>
+                        <Switch
+                            checked={settings.theme === "dark"}
+                            onCheckedChange={(checked) => handleChange("theme", checked ? "dark" : "light")}
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                                 Enable macOS Notifications
                             </label>
                         </div>

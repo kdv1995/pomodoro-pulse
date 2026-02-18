@@ -72,6 +72,7 @@ struct AppSettings {
     short_break_min: i64,
     long_break_min: i64,
     long_break_every: i64,
+    theme: String,
     sound_enabled: bool,
     notifications_enabled: bool,
     remote_control_enabled: bool,
@@ -86,6 +87,7 @@ impl Default for AppSettings {
             short_break_min: 5,
             long_break_min: 15,
             long_break_every: 4,
+            theme: "light".to_string(),
             sound_enabled: true,
             notifications_enabled: true,
             remote_control_enabled: false,
@@ -112,6 +114,7 @@ struct AppSettingsPatch {
     short_break_min: Option<i64>,
     long_break_min: Option<i64>,
     long_break_every: Option<i64>,
+    theme: Option<String>,
     sound_enabled: Option<bool>,
     notifications_enabled: Option<bool>,
     remote_control_enabled: Option<bool>,
@@ -402,6 +405,10 @@ fn normalize_settings(mut settings: AppSettings) -> AppSettings {
     settings.short_break_min = settings.short_break_min.clamp(1, 60);
     settings.long_break_min = settings.long_break_min.clamp(1, 90);
     settings.long_break_every = settings.long_break_every.clamp(2, 10);
+    settings.theme = match settings.theme.as_str() {
+        "dark" => "dark".to_string(),
+        _ => "light".to_string(),
+    };
     settings.remote_control_port = settings.remote_control_port.clamp(1024, 65535);
     settings
 }
@@ -1871,6 +1878,9 @@ fn settings_update(
         if let Some(v) = patch.long_break_every {
             model.settings.long_break_every = v;
         }
+        if let Some(v) = patch.theme {
+            model.settings.theme = v.trim().to_lowercase();
+        }
         if let Some(v) = patch.sound_enabled {
             model.settings.sound_enabled = v;
         }
@@ -2041,6 +2051,7 @@ mod tests {
             short_break_min: 5,
             long_break_min: 15,
             long_break_every: 4,
+            theme: "light".to_string(),
             sound_enabled: true,
             notifications_enabled: true,
             remote_control_enabled: false,

@@ -31,6 +31,7 @@ import {
 import type {
   AnalyticsRange,
   AppSettings,
+  AppTheme,
   PhaseCompletedEvent,
   SessionRecord,
   TimerPhase,
@@ -175,6 +176,13 @@ export default function App() {
   }, [settingsQuery.data]);
 
   useEffect(() => {
+    const root = document.documentElement;
+    const theme: AppTheme = settingsDraft?.theme === "dark" ? "dark" : "light";
+    root.classList.toggle("dark", theme === "dark");
+    root.style.colorScheme = theme;
+  }, [settingsDraft?.theme]);
+
+  useEffect(() => {
     timerGetState()
       .then((nextState) => {
         setTimer(nextState);
@@ -186,7 +194,7 @@ export default function App() {
       });
   }, []);
 
-  // Update body attribute for theme theming
+  // Update body attribute for phase theming
   useEffect(() => {
     if (timer?.phase) {
       document.body.setAttribute("data-phase", timer.phase);

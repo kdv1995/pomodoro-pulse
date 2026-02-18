@@ -10,10 +10,24 @@ permissions:
 
 jobs:
   check:
-    name: check
-    runs-on: ubuntu-latest
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - uses: actions/setup-node@v4
         with:
@@ -24,6 +38,10 @@ jobs:
 
       - name: Install rustfmt
         run: rustup component add rustfmt
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
 
       - run: npm ci
 
@@ -36,4 +54,12 @@ jobs:
       - name: Rust fmt
         working-directory: src-tauri
         run: cargo fmt --all -- --check
+
+      - name: Tauri bundle build (Linux)
+        if: runner.os == 'Linux'
+        run: npm run tauri build -- --bundles appimage,deb
+
+      - name: Tauri bundle build (Windows)
+        if: runner.os == 'Windows'
+        run: npm run tauri build -- --bundles nsis,msi
 
