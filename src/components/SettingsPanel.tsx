@@ -95,7 +95,7 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                     <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
                             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                Enable macOS Notifications
+                                Enable Notifications
                             </label>
                         </div>
                         <Switch
@@ -120,10 +120,10 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                     <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
                             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                Enable iPhone Remote Control (LAN)
+                                Enable Remote Control (LAN)
                             </label>
                             <p className="text-xs text-muted-foreground">
-                                Exposes a local HTTP control page on your Mac so your iPhone can Start/Pause/Skip.
+                                Exposes a local HTTP control page on your system so your phone can Start/Pause/Skip.
                             </p>
                         </div>
                         <Switch
@@ -156,7 +156,7 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                                 disabled={!settings.remoteControlEnabled}
                             />
                             <p className="text-xs text-muted-foreground">
-                                iPhone URL: <span className="font-mono break-all">http://YOUR_MAC_IP:{settings.remoteControlPort}/?token={settings.remoteControlToken}</span>
+                                Remote URL: <span className="font-mono break-all">http://YOUR_LOCAL_NETWORK_PC_IP:{settings.remoteControlPort}/?token={settings.remoteControlToken}</span>
                             </p>
                         </div>
                     </div>
