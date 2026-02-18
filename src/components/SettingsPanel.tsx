@@ -141,9 +141,25 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                                 disabled={!settings.remoteControlEnabled}
                             />
                             <p className="text-xs text-muted-foreground">
-                                iPhone URL: <span className="font-mono break-all">http://YOUR_MAC_IP:{settings.remoteControlPort}/?token={settings.remoteControlToken}</span>
+                                iPhone URL: <span className="font-mono break-all">http://YOUR_MAC_IP:{settings.remoteControlPort}/</span>
                             </p>
                         </div>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border border-destructive/20 bg-destructive/5 p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                Allow remote access from public networks (unsafe)
+                            </label>
+                            <p className="text-xs text-muted-foreground">
+                                Not recommended. Enabling this may expose your remote control to untrusted devices and Wi-Fi sniffing.
+                            </p>
+                        </div>
+                        <Switch
+                            checked={settings.remoteControlAllowPublicNetwork}
+                            onCheckedChange={(checked) => handleChange("remoteControlAllowPublicNetwork", checked)}
+                            disabled={!settings.remoteControlEnabled}
+                        />
                     </div>
                 </div>
 

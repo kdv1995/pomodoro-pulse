@@ -21,6 +21,7 @@ export default function Sidebar({ activeTab, onChange }: SidebarProps) {
                     size="icon"
                     onClick={() => onChange("timer")}
                     title="Timer"
+                    aria-label="Timer"
                 >
                     <Timer className="h-5 w-5" />
                 </Button>
@@ -29,6 +30,7 @@ export default function Sidebar({ activeTab, onChange }: SidebarProps) {
                     size="icon"
                     onClick={() => onChange("stats")}
                     title="Statistics"
+                    aria-label="Statistics"
                 >
                     <BarChart2 className="h-5 w-5" />
                 </Button>
@@ -37,6 +39,7 @@ export default function Sidebar({ activeTab, onChange }: SidebarProps) {
                     size="icon"
                     onClick={() => onChange("settings")}
                     title="Settings"
+                    aria-label="Settings"
                 >
                     <Settings className="h-5 w-5" />
                 </Button>

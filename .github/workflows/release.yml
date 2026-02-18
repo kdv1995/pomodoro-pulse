@@ -12,6 +12,13 @@ permissions:
 jobs:
   build:
     name: Build ${{ matrix.name }}
+    env:
+      MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
     strategy:
       fail-fast: false
       matrix:
@@ -42,6 +49,14 @@ jobs:
           rustup target add aarch64-apple-darwin
           rustup target add x86_64-apple-darwin
 
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install Linux dependencies
         if: matrix.platform == 'linux'
         run: |
@@ -67,6 +82,73 @@ jobs:
         if: matrix.platform == 'macos'
         run: npm run tauri build -- --target universal-apple-darwin
 
+      - name: Import macOS signing certificate
+        if: matrix.platform == 'macos' && env.MACOS_CERT_P12 != '' && env.MACOS_CERT_PASSWORD != ''
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+
+          CERT_P12="$RUNNER_TEMP/cert.p12"
+          (echo "$MACOS_CERT_P12" | base64 --decode > "$CERT_P12") 2>/dev/null || (echo "$MACOS_CERT_P12" | base64 -D > "$CERT_P12")
+          security import "$CERT_P12" -k "$KEYCHAIN" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+
+          security list-keychains -d user -s "$KEYCHAIN"
+          security set-keychain-settings -t 21600 -u "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+
+      - name: Sign + notarize macOS DMG (if secrets configured)
+        if: matrix.platform == 'macos' && env.MACOS_CERT_P12 != '' && env.MACOS_CERT_PASSWORD != '' && env.MACOS_CODESIGN_IDENTITY != '' && env.APPLE_ID != '' && env.APPLE_TEAM_ID != '' && env.APPLE_APP_PASSWORD != ''
+        run: |
+          set -euo pipefail
+
+          DMG_IN="$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print | head -n 1)"
+          echo "Input DMG: $DMG_IN"
+          if [[ -z "${DMG_IN:-}" ]]; then
+            echo "No DMG found"
+            exit 1
+          fi
+
+          WORK="$(mktemp -d)"
+          MOUNT="$(mktemp -d)"
+          cleanup() {
+            hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
+            rm -rf "$MOUNT" "$WORK" || true
+          }
+          trap cleanup EXIT
+
+          hdiutil attach "$DMG_IN" -nobrowse -readonly -mountpoint "$MOUNT" >/dev/null
+          APP_SOURCE="$(find "$MOUNT" -maxdepth 1 -type d -name '*.app' | head -n 1)"
+          if [[ -z "${APP_SOURCE:-}" ]]; then
+            echo "No .app found inside DMG"
+            exit 1
+          fi
+
+          cp -R "$APP_SOURCE" "$WORK/"
+          APP_PATH="$WORK/$(basename "$APP_SOURCE")"
+          hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
+
+          echo "Signing app: $APP_PATH"
+          codesign --force --deep --options runtime --timestamp --sign "$MACOS_CODESIGN_IDENTITY" "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+          BASE="$(basename "$DMG_IN" .dmg)"
+          DMG_OUT_DIR="$(dirname "$DMG_IN")"
+          DMG_OUT="$DMG_OUT_DIR/${BASE}-notarized.dmg"
+          echo "Creating DMG: $DMG_OUT"
+          hdiutil create -volname "Pomodoro Pulse" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_OUT" >/dev/null
+
+          echo "Submitting for notarization..."
+          xcrun notarytool submit "$DMG_OUT" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          echo "Stapling..."
+          xcrun stapler staple "$DMG_OUT"
+
+      - name: Notarization skipped notice
+        if: matrix.platform == 'macos' && (env.MACOS_CODESIGN_IDENTITY == '' || env.APPLE_ID == '' || env.APPLE_TEAM_ID == '' || env.APPLE_APP_PASSWORD == '' || env.MACOS_CERT_P12 == '' || env.MACOS_CERT_PASSWORD == '')
+        run: 'echo "macOS signing/notarization skipped: missing required secrets."'
+
       - name: Build Windows
         if: matrix.platform == 'windows'
         run: npm run tauri build -- --bundles nsis
@@ -80,7 +162,11 @@ jobs:
         run: |
           mkdir -p release-assets
           ls -la src-tauri/target/universal-apple-darwin/release/bundle/dmg
-          cp -v src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg release-assets/
+          if ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/*-notarized.dmg >/dev/null 2>&1; then
+            cp -v src-tauri/target/universal-apple-darwin/release/bundle/dmg/*-notarized.dmg release-assets/
+          else
+            cp -v src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg release-assets/
+          fi
 
       - name: Collect Windows assets
         if: matrix.platform == 'windows'

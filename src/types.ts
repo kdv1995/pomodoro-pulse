@@ -10,6 +10,7 @@ export interface AppSettings {
   remoteControlEnabled: boolean;
   remoteControlPort: number;
   remoteControlToken: string;
+  remoteControlAllowPublicNetwork: boolean;
 }
 
 export interface AppSettingsPatch {
@@ -22,6 +23,7 @@ export interface AppSettingsPatch {
   remoteControlEnabled?: boolean;
   remoteControlPort?: number;
   remoteControlToken?: string;
+  remoteControlAllowPublicNetwork?: boolean;
 }
 
 export interface TimerState {

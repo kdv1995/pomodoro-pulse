@@ -108,6 +108,11 @@ You can optionally control the timer from your iPhone using a local web page ser
 
 1. Open the app -> Settings -> enable "iPhone Remote Control (LAN)" -> Save.
 2. Find your Mac's Wi‑Fi IP: `ipconfig getifaddr en0`
-3. On iPhone Safari open: `http://YOUR_MAC_IP:PORT/?token=TOKEN`
+3. On iPhone Safari open: `http://YOUR_MAC_IP:PORT/`
+4. Paste the token shown in the macOS app Settings.
 
 Your Mac and iPhone must be on the same Wi‑Fi, and the app must be running.
+
+Security note:
+- Avoid enabling remote control on untrusted Wi‑Fi networks.
+- The optional setting "Allow remote access from public networks (unsafe)" is not recommended.

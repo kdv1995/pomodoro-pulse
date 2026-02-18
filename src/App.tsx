@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 
 import {
   isPermissionGranted,
   requestPermission,
-  sendNotification,
 } from "@tauri-apps/plugin-notification";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -33,7 +32,6 @@ import type {
   AppSettings,
   PhaseCompletedEvent,
   SessionRecord,
-  TimerPhase,
   TimerState,
 } from "./types";
 import "./App.css";
@@ -47,7 +45,7 @@ import HistoryList from "./components/HistoryList";
 import TitleBar from "./components/TitleBar";
 import Sidebar from "./components/Sidebar";
 
-import StatsChart from "./components/StatsChart";
+const StatsChart = lazy(() => import("./components/StatsChart"));
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,51 +58,23 @@ import {
 
 const DAY_SECONDS = 86_400;
 
-function phaseLabel(phase: TimerPhase) {
-  switch (phase) {
-    case "focus":
-      return "Focus";
-    case "short_break":
-      return "Short break";
-    case "long_break":
-      return "Long break";
-    default:
-      return phase;
-  }
-}
-
-function playTone() {
-  const context = new AudioContext();
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-
-  oscillator.connect(gain);
-  gain.connect(context.destination);
-
-  oscillator.type = "triangle";
-  oscillator.frequency.value = 880;
-  gain.gain.setValueAtTime(0.15, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.4);
-
-  oscillator.start();
-  oscillator.stop(context.currentTime + 0.4);
-}
-
 export default function App() {
   const queryClient = useQueryClient();
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const contextDirtyRef = useRef(false);
 
   const [timer, setTimer] = useState<TimerState | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
   const [filterProjectId] = useState<number | undefined>();
   const [filterTagId] = useState<number | undefined>();
-  const [rangeDays, setRangeDays] = useState(14);
   const [settingsDraft, setSettingsDraft] = useState<AppSettings | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectColor, setNewProjectColor] = useState("#f97316");
   const [newTagName, setNewTagName] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
+  const [contextDirty, setContextDirty] = useState(false);
 
   // Navigation State
   const [activeTab, setActiveTab] = useState<"timer" | "stats" | "settings">("timer");
@@ -112,21 +82,12 @@ export default function App() {
 
   const analyticsRange: AnalyticsRange = useMemo(() => {
     const to = Math.floor(Date.now() / 1000);
-    // Determine range based on statsPeriod
-    let days = rangeDays; // Default for history list
+    let days = 7;
     if (activeTab === "stats") {
       if (statsPeriod === "day") days = 1;
       else if (statsPeriod === "week") days = 7;
       else if (statsPeriod === "month") days = 30;
     }
-
-    // For "day" view we might want current day, but the API takes a range.
-    // If we want "Today", from = start of day, to = end of day or current time.
-    // However, existing logic uses `rangeDays * 86400` back from now. 
-    // Let's stick to the simple logic: Day = last 24h, Week = last 7d, Month = last 30d for now, 
-    // or better alignment with the `StatsChart` expectation.
-    // Actually, `StatsChart` for "day" expects `sessionData`. 
-    // `sessionHistory` is fetched based on `analyticsRange`.
 
     const from = to - days * DAY_SECONDS;
     return {
@@ -135,7 +96,7 @@ export default function App() {
       projectId: filterProjectId,
       tagId: filterTagId,
     };
-  }, [filterProjectId, filterTagId, rangeDays, statsPeriod, activeTab]);
+  }, [filterProjectId, filterTagId, statsPeriod, activeTab]);
 
   const settingsQuery = useQuery({
     queryKey: ["settings"],
@@ -175,6 +136,24 @@ export default function App() {
   }, [settingsQuery.data]);
 
   useEffect(() => {
+    contextDirtyRef.current = contextDirty;
+  }, [contextDirty]);
+
+  useEffect(() => {
+    // Request notifications permission proactively (Rust emits system notifications).
+    if (!settingsDraft?.notificationsEnabled) {
+      return;
+    }
+    (async () => {
+      let granted = await isPermissionGranted();
+      if (!granted) {
+        granted = (await requestPermission()) === "granted";
+      }
+      return granted;
+    })().catch(() => {});
+  }, [settingsDraft?.notificationsEnabled]);
+
+  useEffect(() => {
     timerGetState()
       .then((nextState) => {
         setTimer(nextState);
@@ -203,27 +182,35 @@ export default function App() {
     async function setupListeners() {
       unlistenState = await listen<TimerState>("timer://state", (event) => {
         setTimer(event.payload);
+        if (!contextDirtyRef.current || event.payload.isRunning) {
+          setSelectedProjectId(event.payload.currentProjectId ?? null);
+          setSelectedTagIds(event.payload.currentTagIds ?? []);
+        }
       });
 
       unlistenPhase = await listen<PhaseCompletedEvent>(
         "timer://phase-completed",
-        async (event) => {
-          if (settingsDraft?.notificationsEnabled) {
-            let granted = await isPermissionGranted();
-            if (!granted) {
-              granted = (await requestPermission()) === "granted";
-            }
-            if (granted) {
-              await sendNotification({
-                title: "Pomodoro update",
-                body: `${phaseLabel(event.payload.completedPhase)} complete. Next ${phaseLabel(
-                  event.payload.nextPhase,
-                )}.`,
-              });
-            }
-          }
+        async () => {
           if (settingsDraft?.soundEnabled) {
-            playTone();
+            try {
+              let ctx = audioContextRef.current;
+              if (!ctx || ctx.state === "closed") {
+                ctx = new AudioContext();
+                audioContextRef.current = ctx;
+              }
+              const oscillator = ctx.createOscillator();
+              const gain = ctx.createGain();
+              oscillator.connect(gain);
+              gain.connect(ctx.destination);
+              oscillator.type = "triangle";
+              oscillator.frequency.value = 880;
+              gain.gain.setValueAtTime(0.15, ctx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+              oscillator.start();
+              oscillator.stop(ctx.currentTime + 0.4);
+            } catch {
+              // Ignore audio failures (autoplay restrictions, etc).
+            }
           }
 
           queryClient.invalidateQueries({ queryKey: ["summary"] });
@@ -247,6 +234,8 @@ export default function App() {
       unlistenState?.();
       unlistenPhase?.();
       unlistenSession?.();
+      audioContextRef.current?.close().catch(() => {});
+      audioContextRef.current = null;
     };
   }, [queryClient, settingsDraft?.notificationsEnabled, settingsDraft?.soundEnabled]);
 
@@ -457,9 +446,13 @@ export default function App() {
                         onValueChange={(value) => {
                           const next = value === "no-project" ? null : Number(value);
                           setSelectedProjectId(next);
-                          void timerSetContext({ projectId: next, tagIds: selectedTagIds }).catch((error) =>
-                            setStatusMessage(String(error)),
-                          );
+                          setContextDirty(true);
+                          void timerSetContext({ projectId: next, tagIds: selectedTagIds })
+                            .then(() => setContextDirty(false))
+                            .catch((error) => {
+                              setContextDirty(false);
+                              setStatusMessage(String(error));
+                            });
                         }}
                         disabled={contextLocked}
                       >
@@ -495,15 +488,23 @@ export default function App() {
                                 if (selected) {
                                   const next = selectedTagIds.filter((id) => id !== tag.id);
                                   setSelectedTagIds(next);
-                                  void timerSetContext({ projectId: selectedProjectId, tagIds: next }).catch((error) =>
-                                    setStatusMessage(String(error)),
-                                  );
+                                  setContextDirty(true);
+                                  void timerSetContext({ projectId: selectedProjectId, tagIds: next })
+                                    .then(() => setContextDirty(false))
+                                    .catch((error) => {
+                                      setContextDirty(false);
+                                      setStatusMessage(String(error));
+                                    });
                                 } else {
                                   const next = [...selectedTagIds, tag.id];
                                   setSelectedTagIds(next);
-                                  void timerSetContext({ projectId: selectedProjectId, tagIds: next }).catch((error) =>
-                                    setStatusMessage(String(error)),
-                                  );
+                                  setContextDirty(true);
+                                  void timerSetContext({ projectId: selectedProjectId, tagIds: next })
+                                    .then(() => setContextDirty(false))
+                                    .catch((error) => {
+                                      setContextDirty(false);
+                                      setStatusMessage(String(error));
+                                    });
                                 }
                               }}
                             >
@@ -531,31 +532,19 @@ export default function App() {
                   </div>
                 </div>
 
-                <StatsChart
-                  period={statsPeriod}
-                  onPeriodChange={setStatsPeriod}
-                  timeseriesData={seriesQuery.data ?? []}
-                  sessionData={historyQuery.data ?? []}
-                />
+                <Suspense fallback={<div className="rounded-xl border bg-card p-6">Loading chart...</div>}>
+                  <StatsChart
+                    period={statsPeriod}
+                    onPeriodChange={setStatsPeriod}
+                    timeseriesData={seriesQuery.data ?? []}
+                    sessionData={historyQuery.data ?? []}
+                  />
+                </Suspense>
 
                 <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
                   <div className="flex flex-row items-center justify-between p-6 pb-2">
                     <h3 className="text-lg font-semibold leading-none tracking-tight">History</h3>
                     <div className="flex items-center gap-2">
-
-                      <Select
-                        value={rangeDays.toString()}
-                        onValueChange={(value) => setRangeDays(Number(value))}
-                      >
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue placeholder="Select range" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="7">Last 7 days</SelectItem>
-                          <SelectItem value="14">Last 14 days</SelectItem>
-                          <SelectItem value="30">Last 30 days</SelectItem>
-                        </SelectContent>
-                      </Select>
                       <div className="flex gap-1">
                         <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 w-9" onClick={onExportCsv} title="Export CSV">📄</button>
                         <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 px-3" onClick={onExportJson} title="Export JSON">{ } JSON</button>
@@ -636,7 +625,7 @@ export default function App() {
       </div>
 
       <footer className="border-t bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
-        <p>{statusMessage || "Ready to focus."}</p>
+        <p role="status" aria-live="polite">{statusMessage || "Ready to focus."}</p>
       </footer>
     </div>
   );

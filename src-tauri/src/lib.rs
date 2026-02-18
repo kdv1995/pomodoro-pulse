@@ -7,12 +7,13 @@ use std::{
     collections::{BTreeMap, HashSet},
     fs,
     io::{Read, Write},
+    net::SocketAddr,
     net::TcpListener,
-    sync::{Mutex, MutexGuard},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    sync::{Mutex, MutexGuard},
     thread,
     time::Duration,
 };
@@ -77,6 +78,7 @@ struct AppSettings {
     remote_control_enabled: bool,
     remote_control_port: i64,
     remote_control_token: String,
+    remote_control_allow_public_network: bool,
 }
 
 impl Default for AppSettings {
@@ -91,6 +93,7 @@ impl Default for AppSettings {
             remote_control_enabled: false,
             remote_control_port: 48484,
             remote_control_token: String::new(),
+            remote_control_allow_public_network: false,
         }
     }
 }
@@ -117,6 +120,7 @@ struct AppSettingsPatch {
     remote_control_enabled: Option<bool>,
     remote_control_port: Option<i64>,
     remote_control_token: Option<String>,
+    remote_control_allow_public_network: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -375,11 +379,16 @@ fn save_json_setting<T: Serialize>(conn: &Connection, key: &str, value: &T) -> A
     Ok(())
 }
 
-fn load_json_setting<T: for<'de> Deserialize<'de>>(conn: &Connection, key: &str) -> AppResult<Option<T>> {
+fn load_json_setting<T: for<'de> Deserialize<'de>>(
+    conn: &Connection,
+    key: &str,
+) -> AppResult<Option<T>> {
     let value: Option<String> = conn
-        .query_row("SELECT value FROM settings WHERE key = ?1", params![key], |row| {
-            row.get(0)
-        })
+        .query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|e| e.to_string())?;
 
@@ -466,8 +475,16 @@ fn format_seconds(seconds: i64) -> String {
 
 fn update_tray_title(app: &AppHandle, timer: &TimerState) {
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
-        let status = if timer.is_running { "Running" } else { "Paused" };
-        let title = format!("{} {} {status}", timer.phase, format_seconds(timer.remaining_seconds));
+        let status = if timer.is_running {
+            "Running"
+        } else {
+            "Paused"
+        };
+        let title = format!(
+            "{} {} {status}",
+            timer.phase,
+            format_seconds(timer.remaining_seconds)
+        );
         let _ = tray.set_title(Some(&title));
     }
 }
@@ -477,7 +494,12 @@ fn emit_timer_state(app: &AppHandle, timer: &TimerState) {
     update_tray_title(app, timer);
 }
 
-fn record_session(conn: &Connection, timer: &TimerState, completed: bool, ended_at: i64) -> AppResult<SessionRecord> {
+fn record_session(
+    conn: &Connection,
+    timer: &TimerState,
+    completed: bool,
+    ended_at: i64,
+) -> AppResult<SessionRecord> {
     let elapsed = if completed {
         timer.phase_total_seconds
     } else {
@@ -574,8 +596,16 @@ fn complete_and_advance(
     };
 
     if model.settings.notifications_enabled {
-        let body = format!("{} complete. Next: {}", event.completed_phase, event.next_phase);
-        let _ = app.notification().builder().title("Pomodoro update").body(&body).show();
+        let body = format!(
+            "{} complete. Next: {}",
+            event.completed_phase, event.next_phase
+        );
+        let _ = app
+            .notification()
+            .builder()
+            .title("Pomodoro update")
+            .body(&body)
+            .show();
     }
 
     Ok((session, event, model.timer.clone()))
@@ -584,10 +614,12 @@ fn complete_and_advance(
 fn setup_tray(app: &AppHandle) -> AppResult<()> {
     let toggle = MenuItem::with_id(app, "toggle", "Start / Pause", true, None::<&str>)
         .map_err(|e| e.to_string())?;
-    let skip = MenuItem::with_id(app, "skip", "Skip phase", true, None::<&str>).map_err(|e| e.to_string())?;
+    let skip = MenuItem::with_id(app, "skip", "Skip phase", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
     let open = MenuItem::with_id(app, "open", "Open dashboard", true, None::<&str>)
         .map_err(|e| e.to_string())?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>).map_err(|e| e.to_string())?;
+    let quit =
+        MenuItem::with_id(app, "quit", "Quit", true, None::<&str>).map_err(|e| e.to_string())?;
 
     let menu = Menu::with_items(app, &[&toggle, &skip, &open, &quit]).map_err(|e| e.to_string())?;
 
@@ -664,7 +696,11 @@ fn tray_skip_timer(app: &AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-fn timer_start_inner(app: &AppHandle, state: &AppState, payload: Option<StartTimerRequest>) -> AppResult<TimerState> {
+fn timer_start_inner(
+    app: &AppHandle,
+    state: &AppState,
+    payload: Option<StartTimerRequest>,
+) -> AppResult<TimerState> {
     let timer = {
         let mut model = state.model.lock().map_err(|e| e.to_string())?;
         refresh_remaining(&mut model.timer);
@@ -713,7 +749,11 @@ fn timer_pause_inner(app: &AppHandle, state: &AppState) -> AppResult<TimerState>
     Ok(timer)
 }
 
-fn timer_resume_inner(app: &AppHandle, state: &AppState, payload: Option<StartTimerRequest>) -> AppResult<TimerState> {
+fn timer_resume_inner(
+    app: &AppHandle,
+    state: &AppState,
+    payload: Option<StartTimerRequest>,
+) -> AppResult<TimerState> {
     let timer = {
         let mut model = state.model.lock().map_err(|e| e.to_string())?;
         if let Some(payload) = payload {
@@ -812,17 +852,6 @@ fn header_value<'a>(headers: &'a [httparse::Header<'a>], name: &str) -> Option<&
     None
 }
 
-fn parse_query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
-    for part in query.split('&') {
-        let mut it = part.splitn(2, '=');
-        let k = it.next().unwrap_or("");
-        if k == key {
-            return Some(it.next().unwrap_or(""));
-        }
-    }
-    None
-}
-
 fn split_path_query(path: &str) -> (&str, &str) {
     match path.split_once('?') {
         Some((p, q)) => (p, q),
@@ -832,11 +861,61 @@ fn split_path_query(path: &str) -> (&str, &str) {
 
 fn write_response(stream: &mut std::net::TcpStream, code: &str, content_type: &str, body: &[u8]) {
     let headers = format!(
-        "HTTP/1.1 {code}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Content-Type, X-Pomodoro-Token\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\n\r\n",
+        "HTTP/1.1 {code}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n\r\n",
         body.len()
     );
     let _ = stream.write_all(headers.as_bytes());
     let _ = stream.write_all(body);
+}
+
+fn is_remote_peer_allowed(peer: &SocketAddr, allow_public: bool) -> bool {
+    if allow_public {
+        return true;
+    }
+
+    match peer.ip() {
+        std::net::IpAddr::V4(ip) => {
+            let o = ip.octets();
+            if ip.is_loopback() {
+                return true;
+            }
+
+            // RFC1918 private ranges.
+            if o[0] == 10 {
+                return true;
+            }
+            if o[0] == 172 && (16..=31).contains(&o[1]) {
+                return true;
+            }
+            if o[0] == 192 && o[1] == 168 {
+                return true;
+            }
+
+            // Link-local (169.254.0.0/16).
+            if o[0] == 169 && o[1] == 254 {
+                return true;
+            }
+
+            false
+        }
+        std::net::IpAddr::V6(ip) => {
+            if ip.is_loopback() {
+                return true;
+            }
+
+            let seg0 = ip.segments()[0];
+            // Unique local: fc00::/7.
+            if (seg0 & 0xfe00) == 0xfc00 {
+                return true;
+            }
+            // Link-local: fe80::/10.
+            if (seg0 & 0xffc0) == 0xfe80 {
+                return true;
+            }
+
+            false
+        }
+    }
 }
 
 fn remote_html() -> String {
@@ -889,7 +968,7 @@ fn remote_html() -> String {
             <button class="danger" id="skip">Skip Phase</button>
           </div>
           <div class="sp"></div>
-          <p class="muted">Tip: you can bookmark this page. Token is stored in the URL as <code>?token=...</code>.</p>
+	          <p class="muted">Tip: you can bookmark this page. Your token is stored only in this browser (local storage).</p>
         </div>
       </div>
       <div class="sp"></div>
@@ -897,30 +976,63 @@ fn remote_html() -> String {
     </div>
 
     <script>
-      const qs = new URLSearchParams(location.search);
-      let token = qs.get("token") || "";
+	      const qs = new URLSearchParams(location.search);
+	      const STORAGE_KEY = "pomodoro_remote_token";
+	      const legacyToken = (qs.get("token") || "").trim();
+	      let token = localStorage.getItem(STORAGE_KEY) || "";
 
       const auth = document.getElementById("auth");
       const main = document.getElementById("main");
       const tokenInput = document.getElementById("token");
       const saveToken = document.getElementById("saveToken");
 
-      function withTokenUrl(t) {
-        const u = new URL(location.href);
-        u.searchParams.set("token", t);
-        return u.toString();
-      }
+	      function cleanUrl() {
+	        const u = new URL(location.href);
+	        u.searchParams.delete("token");
+	        history.replaceState(null, "", u.toString());
+	      }
 
       function showMain() { auth.style.display = "none"; main.style.display = "block"; }
       function showAuth() { auth.style.display = "block"; main.style.display = "none"; }
 
-      if (token) showMain(); else showAuth();
-      tokenInput.value = token;
-      saveToken.addEventListener("click", () => {
-        const t = (tokenInput.value || "").trim();
-        if (!t) return;
-        location.href = withTokenUrl(t);
-      });
+	      if (legacyToken) {
+	        // Always allow ?token= to override stored token.
+	        // This supports quick recovery when the desktop token is regenerated.
+	        token = legacyToken;
+	        localStorage.setItem(STORAGE_KEY, token);
+	        cleanUrl();
+	      }
+
+	      if (token) showMain(); else showAuth();
+	      tokenInput.value = token;
+	      saveToken.addEventListener("click", () => {
+	        const t = (tokenInput.value || "").trim();
+	        if (!t) return;
+	        token = t;
+	        localStorage.setItem(STORAGE_KEY, token);
+	        cleanUrl();
+	        showMain();
+	        refresh();
+	      });
+
+	      function clearStoredToken() {
+	        localStorage.removeItem(STORAGE_KEY);
+	        token = "";
+	        tokenInput.value = "";
+	        showAuth();
+	      }
+
+	      const clearTokenAuth = document.createElement("button");
+	      clearTokenAuth.textContent = "Clear token";
+	      clearTokenAuth.style.marginTop = "10px";
+	      clearTokenAuth.addEventListener("click", clearStoredToken);
+	      auth.appendChild(clearTokenAuth);
+
+	      const clearTokenMain = document.createElement("button");
+	      clearTokenMain.textContent = "Change token";
+	      clearTokenMain.style.marginTop = "10px";
+	      clearTokenMain.addEventListener("click", clearStoredToken);
+	      main.appendChild(clearTokenMain);
 
       async function api(path, method) {
         const res = await fetch(path, {
@@ -945,17 +1057,25 @@ fn remote_html() -> String {
         return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
       }
 
-      async function refresh() {
-        if (!token) return;
-        try {
-          const st = await api("/api/state", "GET");
+	      async function refresh() {
+	        if (!token) return;
+	        try {
+	          const st = await api("/api/state", "GET");
           document.getElementById("phase").textContent = phaseLabel(st.phase);
           document.getElementById("time").textContent = fmt(st.remainingSeconds);
           document.getElementById("status").textContent = st.isRunning ? "Running" : "Paused";
-        } catch (e) {
-          document.getElementById("status").textContent = String(e.message || e);
-        }
-      }
+	        } catch (e) {
+	          const msg = String(e.message || e);
+	          document.getElementById("status").textContent = msg;
+	          if (msg.toLowerCase().includes("unauthorized")) {
+	            // If token is invalid/stale, immediately show auth flow.
+	            localStorage.removeItem(STORAGE_KEY);
+	            token = "";
+	            tokenInput.value = "";
+	            showAuth();
+	          }
+	        }
+	      }
 
       document.getElementById("toggle").addEventListener("click", async () => {
         try { await api("/api/toggle", "POST"); } finally { await refresh(); }
@@ -973,7 +1093,7 @@ fn remote_html() -> String {
         .to_string()
 }
 
-fn remote_handle_connection(app: &AppHandle, mut stream: std::net::TcpStream) {
+fn remote_handle_connection(app: &AppHandle, peer: SocketAddr, mut stream: std::net::TcpStream) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
 
@@ -999,7 +1119,12 @@ fn remote_handle_connection(app: &AppHandle, mut stream: std::net::TcpStream) {
     let header_end = match header_end {
         Some(v) => v,
         None => {
-            write_response(&mut stream, "400 Bad Request", "text/plain; charset=utf-8", b"bad request");
+            write_response(
+                &mut stream,
+                "400 Bad Request",
+                "text/plain; charset=utf-8",
+                b"bad request",
+            );
             return;
         }
     };
@@ -1009,14 +1134,19 @@ fn remote_handle_connection(app: &AppHandle, mut stream: std::net::TcpStream) {
     let _parsed = match req.parse(&buf[..filled]) {
         Ok(Status::Complete(n)) => n,
         _ => {
-            write_response(&mut stream, "400 Bad Request", "text/plain; charset=utf-8", b"bad request");
+            write_response(
+                &mut stream,
+                "400 Bad Request",
+                "text/plain; charset=utf-8",
+                b"bad request",
+            );
             return;
         }
     };
 
     let method = req.method.unwrap_or("");
     let path_raw = req.path.unwrap_or("/");
-    let (path, query) = split_path_query(path_raw);
+    let (path, _query) = split_path_query(path_raw);
 
     let content_length = header_value(req.headers, "Content-Length")
         .and_then(|v| v.parse::<usize>().ok())
@@ -1041,25 +1171,54 @@ fn remote_handle_connection(app: &AppHandle, mut stream: std::net::TcpStream) {
     }
 
     if method.eq_ignore_ascii_case("OPTIONS") {
-        write_response(&mut stream, "204 No Content", "text/plain; charset=utf-8", b"");
+        write_response(
+            &mut stream,
+            "204 No Content",
+            "text/plain; charset=utf-8",
+            b"",
+        );
         return;
     }
 
     // Snapshot settings for auth/enable checks.
-    let (remote_enabled, token_expected) = {
+    let (remote_enabled, token_expected, allow_public) = {
         let state = app.state::<AppState>();
         let model = match state.model.lock() {
             Ok(m) => m,
             Err(_) => {
-                write_response(&mut stream, "500 Internal Server Error", "text/plain; charset=utf-8", b"error");
+                write_response(
+                    &mut stream,
+                    "500 Internal Server Error",
+                    "text/plain; charset=utf-8",
+                    b"error",
+                );
                 return;
             }
         };
-        (model.settings.remote_control_enabled, model.settings.remote_control_token.clone())
+        (
+            model.settings.remote_control_enabled,
+            model.settings.remote_control_token.clone(),
+            model.settings.remote_control_allow_public_network,
+        )
     };
 
     if !remote_enabled {
-        write_response(&mut stream, "404 Not Found", "text/plain; charset=utf-8", b"not found");
+        write_response(
+            &mut stream,
+            "404 Not Found",
+            "text/plain; charset=utf-8",
+            b"not found",
+        );
+        return;
+    }
+
+    if !is_remote_peer_allowed(&peer, allow_public) {
+        write_response(
+            &mut stream,
+            "403 Forbidden",
+            "text/plain; charset=utf-8",
+            b"forbidden",
+        );
         return;
     }
 
@@ -1067,15 +1226,23 @@ fn remote_handle_connection(app: &AppHandle, mut stream: std::net::TcpStream) {
     // All API endpoints remain token-protected.
     if method.eq_ignore_ascii_case("GET") && path == "/" {
         let html = remote_html();
-        write_response(&mut stream, "200 OK", "text/html; charset=utf-8", html.as_bytes());
+        write_response(
+            &mut stream,
+            "200 OK",
+            "text/html; charset=utf-8",
+            html.as_bytes(),
+        );
         return;
     }
 
-    let token_got = header_value(req.headers, "X-Pomodoro-Token")
-        .or_else(|| parse_query_param(query, "token"))
-        .unwrap_or("");
+    let token_got = header_value(req.headers, "X-Pomodoro-Token").unwrap_or("");
     if token_got != token_expected {
-        write_response(&mut stream, "401 Unauthorized", "text/plain; charset=utf-8", b"unauthorized");
+        write_response(
+            &mut stream,
+            "401 Unauthorized",
+            "text/plain; charset=utf-8",
+            b"unauthorized",
+        );
         return;
     }
 
@@ -1084,7 +1251,9 @@ fn remote_handle_connection(app: &AppHandle, mut stream: std::net::TcpStream) {
     let json = match (method, path) {
         ("GET", "/api/state") => match timer_get_state_inner(state.inner()) {
             Ok(v) => serde_json::to_vec(&v).ok(),
-            Err(e) => Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default()),
+            Err(e) => {
+                Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default())
+            }
         },
         ("POST", "/api/toggle") => {
             let current = timer_get_state_inner(state.inner());
@@ -1102,38 +1271,63 @@ fn remote_handle_connection(app: &AppHandle, mut stream: std::net::TcpStream) {
             };
             match next {
                 Ok(v) => serde_json::to_vec(&v).ok(),
-                Err(e) => Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default()),
+                Err(e) => {
+                    Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default())
+                }
             }
         }
         ("POST", "/api/start") => {
             let payload = serde_json::from_slice::<StartTimerRequest>(&body).ok();
             match timer_start_inner(app, state.inner(), payload) {
                 Ok(v) => serde_json::to_vec(&v).ok(),
-                Err(e) => Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default()),
+                Err(e) => {
+                    Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default())
+                }
             }
         }
         ("POST", "/api/pause") => match timer_pause_inner(app, state.inner()) {
             Ok(v) => serde_json::to_vec(&v).ok(),
-            Err(e) => Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default()),
+            Err(e) => {
+                Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default())
+            }
         },
         ("POST", "/api/resume") => {
             let payload = serde_json::from_slice::<StartTimerRequest>(&body).ok();
             match timer_resume_inner(app, state.inner(), payload) {
                 Ok(v) => serde_json::to_vec(&v).ok(),
-                Err(e) => Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default()),
+                Err(e) => {
+                    Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default())
+                }
             }
         }
         ("POST", "/api/skip") => match timer_skip_inner(app, state.inner()) {
             Ok(v) => serde_json::to_vec(&v).ok(),
-            Err(e) => Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default()),
+            Err(e) => {
+                Some(serde_json::to_vec(&serde_json::json!({ "error": e })).unwrap_or_default())
+            }
         },
         _ => None,
     };
 
     match json {
-        Some(body) if !body.is_empty() => write_response(&mut stream, "200 OK", "application/json; charset=utf-8", &body),
-        Some(_) => write_response(&mut stream, "500 Internal Server Error", "text/plain; charset=utf-8", b"error"),
-        None => write_response(&mut stream, "404 Not Found", "text/plain; charset=utf-8", b"not found"),
+        Some(body) if !body.is_empty() => write_response(
+            &mut stream,
+            "200 OK",
+            "application/json; charset=utf-8",
+            &body,
+        ),
+        Some(_) => write_response(
+            &mut stream,
+            "500 Internal Server Error",
+            "text/plain; charset=utf-8",
+            b"error",
+        ),
+        None => write_response(
+            &mut stream,
+            "404 Not Found",
+            "text/plain; charset=utf-8",
+            b"not found",
+        ),
     }
 }
 
@@ -1150,8 +1344,8 @@ fn remote_server_loop(app: AppHandle, port: u16, stop: Arc<AtomicBool>) {
 
     while stop.load(Ordering::SeqCst) {
         match listener.accept() {
-            Ok((stream, _)) => {
-                remote_handle_connection(&app, stream);
+            Ok((stream, peer)) => {
+                remote_handle_connection(&app, peer, stream);
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 thread::sleep(Duration::from_millis(50));
@@ -1329,8 +1523,16 @@ fn fetch_sessions(conn: &Connection, range: &AnalyticsRange) -> AppResult<Vec<Se
 
     let mut sessions = Vec::new();
     for row in rows {
-        let (id, started_at, ended_at, phase_raw, duration_sec, completed, interruptions, project_id) =
-            row.map_err(|e| e.to_string())?;
+        let (
+            id,
+            started_at,
+            ended_at,
+            phase_raw,
+            duration_sec,
+            completed,
+            interruptions,
+            project_id,
+        ) = row.map_err(|e| e.to_string())?;
         sessions.push(SessionRecord {
             id,
             started_at,
@@ -1351,7 +1553,7 @@ fn day_key(timestamp: i64) -> String {
     let dt = Local
         .timestamp_opt(timestamp, 0)
         .single()
-        .unwrap_or_else(|| Local::now());
+        .unwrap_or_else(Local::now);
     format!("{:04}-{:02}-{:02}", dt.year(), dt.month(), dt.day())
 }
 
@@ -1440,7 +1642,10 @@ fn timer_set_context(
 }
 
 #[tauri::command]
-fn session_complete(payload: CompleteSessionRequest, state: State<'_, AppState>) -> AppResult<SessionRecord> {
+fn session_complete(
+    payload: CompleteSessionRequest,
+    state: State<'_, AppState>,
+) -> AppResult<SessionRecord> {
     let model = lock_model(&state)?;
 
     model
@@ -1486,7 +1691,10 @@ fn session_complete(payload: CompleteSessionRequest, state: State<'_, AppState>)
 }
 
 #[tauri::command]
-fn analytics_get_summary(range: AnalyticsRange, state: State<'_, AppState>) -> AppResult<AnalyticsSummary> {
+fn analytics_get_summary(
+    range: AnalyticsRange,
+    state: State<'_, AppState>,
+) -> AppResult<AnalyticsSummary> {
     let model = lock_model(&state)?;
     let sessions = fetch_sessions(&model.conn, &range)?;
 
@@ -1619,7 +1827,10 @@ fn tags_upsert(input: TagInput, state: State<'_, AppState>) -> AppResult<Tag> {
     let id = if let Some(id) = input.id {
         model
             .conn
-            .execute("UPDATE tags SET name = ?1 WHERE id = ?2", params![input.name, id])
+            .execute(
+                "UPDATE tags SET name = ?1 WHERE id = ?2",
+                params![input.name, id],
+            )
             .map_err(|e| e.to_string())?;
         id
     } else {
@@ -1635,12 +1846,16 @@ fn tags_upsert(input: TagInput, state: State<'_, AppState>) -> AppResult<Tag> {
 
     let tag = model
         .conn
-        .query_row("SELECT id, name FROM tags WHERE id = ?1", params![id], |row| {
-            Ok(Tag {
-                id: row.get(0)?,
-                name: row.get(1)?,
-            })
-        })
+        .query_row(
+            "SELECT id, name FROM tags WHERE id = ?1",
+            params![id],
+            |row| {
+                Ok(Tag {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                })
+            },
+        )
         .map_err(|e| e.to_string())?;
 
     Ok(tag)
@@ -1764,6 +1979,9 @@ fn settings_update(
         if let Some(v) = patch.remote_control_token {
             model.settings.remote_control_token = v;
         }
+        if let Some(v) = patch.remote_control_allow_public_network {
+            model.settings.remote_control_allow_public_network = v;
+        }
 
         model.settings = normalize_settings(model.settings.clone());
         if model.settings.remote_control_token.trim().is_empty() {
@@ -1773,7 +1991,9 @@ fn settings_update(
 
         // Keep the current phase duration in sync if timer is idle.
         if !model.timer.is_running {
-            model.timer.phase_total_seconds = model.settings.duration_for_phase_seconds(&model.timer.phase);
+            model.timer.phase_total_seconds = model
+                .settings
+                .duration_for_phase_seconds(&model.timer.phase);
             model.timer.remaining_seconds = model.timer.phase_total_seconds;
             model.timer.started_at = None;
             model.timer.target_ends_at = None;
@@ -1797,11 +2017,16 @@ fn reset_all_data(app: AppHandle, state: State<'_, AppState>) -> AppResult<Reset
 
         {
             let tx = model.conn.transaction().map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM session_tags", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM sessions", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM projects", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM tags", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM settings", []).map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM session_tags", [])
+                .map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM sessions", [])
+                .map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM projects", [])
+                .map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM tags", [])
+                .map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM settings", [])
+                .map_err(|e| e.to_string())?;
             tx.execute(
                 "DELETE FROM sqlite_sequence WHERE name IN ('projects', 'tags', 'sessions')",
                 [],
@@ -1825,7 +2050,10 @@ fn reset_all_data(app: AppHandle, state: State<'_, AppState>) -> AppResult<Reset
 }
 
 #[tauri::command]
-fn session_history(range: AnalyticsRange, state: State<'_, AppState>) -> AppResult<Vec<SessionRecord>> {
+fn session_history(
+    range: AnalyticsRange,
+    state: State<'_, AppState>,
+) -> AppResult<Vec<SessionRecord>> {
     let model = lock_model(&state)?;
     fetch_sessions(&model.conn, &range)
 }
@@ -1902,6 +2130,7 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
     fn sample_settings() -> AppSettings {
         AppSettings {
@@ -1914,6 +2143,7 @@ mod tests {
             remote_control_enabled: false,
             remote_control_port: 48484,
             remote_control_token: "testtoken".to_string(),
+            remote_control_allow_public_network: false,
         }
     }
 
@@ -1961,5 +2191,38 @@ mod tests {
         ];
 
         assert!(calculate_streak_days(&sessions) >= 2);
+    }
+
+    #[test]
+    fn remote_peer_allowlist_private_ipv4() {
+        let peer = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 10)), 1234);
+        assert!(is_remote_peer_allowed(&peer, false));
+    }
+
+    #[test]
+    fn remote_peer_allowlist_public_ipv4_denied() {
+        let peer = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 1234);
+        assert!(!is_remote_peer_allowed(&peer, false));
+    }
+
+    #[test]
+    fn remote_peer_allowlist_allows_when_public_enabled() {
+        let peer = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 1234);
+        assert!(is_remote_peer_allowed(&peer, true));
+    }
+
+    #[test]
+    fn remote_peer_allowlist_ipv6_ula_allowed() {
+        let peer = SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0xfd00, 0, 0, 0, 0, 0, 0, 1)), 1234);
+        assert!(is_remote_peer_allowed(&peer, false));
+    }
+
+    #[test]
+    fn remote_peer_allowlist_ipv6_public_denied() {
+        let peer = SocketAddr::new(
+            IpAddr::V6(Ipv6Addr::new(0x2001, 0x4860, 0x4860, 0, 0, 0, 0, 0x8888)),
+            1234,
+        );
+        assert!(!is_remote_peer_allowed(&peer, false));
     }
 }

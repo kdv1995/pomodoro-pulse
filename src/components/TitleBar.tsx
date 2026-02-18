@@ -30,18 +30,21 @@ export default function TitleBar() {
                 <button
                     className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted"
                     onClick={minimize}
+                    aria-label="Minimize window"
                 >
                     <Minus size={14} />
                 </button>
                 <button
                     className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted"
                     onClick={toggleMaximize}
+                    aria-label="Toggle maximize window"
                 >
                     <Maximize size={14} />
                 </button>
                 <button
                     className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-destructive hover:text-destructive-foreground"
                     onClick={close}
+                    aria-label="Close window"
                 >
                     <X size={14} />
                 </button>
