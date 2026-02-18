@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -62,4 +62,8 @@ jobs:
       - name: Tauri bundle build (Windows)
         if: runner.os == 'Windows'
         run: npm run tauri build -- --bundles nsis,msi
+
+      - name: Tauri bundle build (macOS)
+        if: runner.os == 'macOS'
+        run: npm run tauri build -- --bundles dmg
 
