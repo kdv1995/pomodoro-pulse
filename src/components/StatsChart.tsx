@@ -85,7 +85,7 @@ export default function StatsChart({ period, onPeriodChange, timeseriesData, ses
                                     boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
                                 }}
                                 formatter={(value: number | undefined) => [
-                                    `${value ?? 0} ${period === "day" ? "mins" : "hrs"}`,
+                                    `${value?.toFixed(2) ?? 0} ${period === "day" ? "mins" : "hrs"}`,
                                     title
                                 ]}
                             />
