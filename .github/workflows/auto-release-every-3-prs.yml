@@ -1,0 +1,133 @@
+name: Auto Release Every N PRs
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: auto-release-main
+  cancel-in-progress: false
+
+env:
+  RELEASE_EVERY_N_PRS: "3"
+
+jobs:
+  maybe-release:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find latest release tag
+        id: latest_tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --tags
+
+          latest_tag="$(git tag --list 'v*.*.*' --sort=-creatordate | head -n1 || true)"
+
+          if [ -z "$latest_tag" ]; then
+            echo "latest_tag=" >> "$GITHUB_OUTPUT"
+            echo "since=1970-01-01T00:00:00Z" >> "$GITHUB_OUTPUT"
+          else
+            since="$(git log -1 --format=%cI "$latest_tag")"
+            echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+            echo "since=$since" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Count merged PRs on main since last release
+        id: pr_count
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const since = '${{ steps.latest_tag.outputs.since }}';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const query = `
+              query($owner: String!, $repo: String!, $cursor: String) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequests(
+                    first: 100,
+                    after: $cursor,
+                    states: MERGED,
+                    baseRefName: "main",
+                    orderBy: { field: UPDATED_AT, direction: DESC }
+                  ) {
+                    nodes {
+                      number
+                      mergedAt
+                    }
+                    pageInfo {
+                      hasNextPage
+                      endCursor
+                    }
+                  }
+                }
+              }
+            `;
+
+            let count = 0;
+            let cursor = null;
+            let page = 0;
+
+            while (true) {
+              page += 1;
+              const result = await github.graphql(query, { owner, repo, cursor });
+              const pullRequests = result.repository.pullRequests;
+
+              for (const pr of pullRequests.nodes) {
+                if (pr.mergedAt && pr.mergedAt > since) {
+                  count += 1;
+                }
+              }
+
+              if (!pullRequests.pageInfo.hasNextPage) break;
+              if (page >= 20) {
+                core.warning('Stopped pagination at 20 pages to avoid long runs.');
+                break;
+              }
+
+              cursor = pullRequests.pageInfo.endCursor;
+            }
+
+            core.info(`Merged PRs since ${since}: ${count}`);
+            core.setOutput('count', String(count));
+
+      - name: Log decision
+        run: |
+          echo "Latest tag: ${{ steps.latest_tag.outputs.latest_tag || 'none' }}"
+          echo "Since: ${{ steps.latest_tag.outputs.since }}"
+          echo "Merged PR count: ${{ steps.pr_count.outputs.count }}"
+          echo "Threshold: ${RELEASE_EVERY_N_PRS}"
+
+      - name: Bump version, commit and tag
+        if: ${{ fromJSON(steps.pr_count.outputs.count) >= fromJSON(env.RELEASE_EVERY_N_PRS) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          current_version="$(node -p "require('./package.json').version")"
+          next_version="$(node -e "const v=process.argv[1]; const m=v.match(/^(\\d+)\\.(\\d+)\\.(\\d+)/); if(!m){process.exit(1)}; console.log(`${m[1]}.${m[2]}.${Number(m[3])+1}`)" "$current_version")"
+
+          echo "Current version: ${current_version}"
+          echo "Next version: ${next_version}"
+
+          node scripts/set_version.mjs "$next_version"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+
+          git commit -m "chore(release): v${next_version}"
+          git tag "v${next_version}"
+
+          git push origin HEAD:main --follow-tags
