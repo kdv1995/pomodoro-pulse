@@ -153,6 +153,11 @@ export default function App() {
     queryFn: () => sessionHistory(historyRange),
   });
 
+  const statsHistoryQuery = useQuery({
+    queryKey: ["history-stats", statsRange],
+    queryFn: () => sessionHistory(statsRange),
+  });
+
   useEffect(() => {
     if (settingsQuery.data) {
       setSettingsDraft(settingsQuery.data);
@@ -221,6 +226,7 @@ export default function App() {
           queryClient.invalidateQueries({ queryKey: ["summary"] });
           queryClient.invalidateQueries({ queryKey: ["series"] });
           queryClient.invalidateQueries({ queryKey: ["history"] });
+          queryClient.invalidateQueries({ queryKey: ["history-stats"] });
         },
       );
 
@@ -228,6 +234,7 @@ export default function App() {
         queryClient.invalidateQueries({ queryKey: ["summary"] });
         queryClient.invalidateQueries({ queryKey: ["series"] });
         queryClient.invalidateQueries({ queryKey: ["history"] });
+        queryClient.invalidateQueries({ queryKey: ["history-stats"] });
       });
     }
 
@@ -247,6 +254,7 @@ export default function App() {
       queryClient.invalidateQueries({ queryKey: ["summary"] }),
       queryClient.invalidateQueries({ queryKey: ["series"] }),
       queryClient.invalidateQueries({ queryKey: ["history"] }),
+      queryClient.invalidateQueries({ queryKey: ["history-stats"] }),
       queryClient.invalidateQueries({ queryKey: ["projects"] }),
       queryClient.invalidateQueries({ queryKey: ["tags"] }),
       queryClient.invalidateQueries({ queryKey: ["settings"] }),
@@ -598,7 +606,11 @@ export default function App() {
                   period={statsPeriod}
                   onPeriodChange={setStatsPeriod}
                   timeseriesData={seriesQuery.data ?? []}
-                  sessionData={historyQuery.data ?? []}
+                  sessionData={
+                    statsPeriod === "day"
+                      ? (statsHistoryQuery.data ?? [])
+                      : (historyQuery.data ?? [])
+                  }
                 />
 
                 <div className="rounded-xl border bg-card text-card-foreground shadow-sm">

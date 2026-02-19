@@ -2024,7 +2024,9 @@ pub fn run() {
             {
                 let state = app.state::<AppState>();
                 let model = state.model.lock().map_err(|e| e.to_string())?;
-                remote_apply(app.handle(), &model.settings)?;
+                if let Err(error) = remote_apply(app.handle(), &model.settings) {
+                    eprintln!("remote control startup warning: {error}");
+                }
             }
             Ok(())
         })
