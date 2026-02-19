@@ -20,5 +20,5 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-// JSDOM does not provide ResizeObserver.
+// Test DOM environment does not provide ResizeObserver.
 global.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
