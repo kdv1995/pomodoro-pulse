@@ -1,6 +1,6 @@
 [package]
 name = "Pomodoro"
-version = "0.1.6"
+version = "0.1.7"
 description = "Pomodoro analytics app"
 authors = ["kdv1995", "doffyso"]
 edition = "2021"
