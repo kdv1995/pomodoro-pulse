@@ -45,6 +45,7 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
     };
 
     const handleCopyIP = () => {
+        if(!settings.remoteControlEnabled) return;
         navigator.clipboard.writeText(`http://${localIp}:${settings.remoteControlPort}/?token=${settings.remoteControlToken}`);
         toast.success("Remote control URL copied to clipboard!", {
             position: "top-center",
