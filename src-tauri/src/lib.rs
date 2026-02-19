@@ -7,7 +7,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     fs,
     io::{Read, Write},
-    net::TcpListener,
+    net::{TcpListener, UdpSocket},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -1972,6 +1972,17 @@ fn session_history(
     fetch_sessions(&model.conn, &range)
 }
 
+#[tauri::command]
+fn get_local_ip() -> Result<String, String> {
+    let socket = UdpSocket::bind("0.0.0.0:0").map_err(|e| e.to_string())?;
+    socket.connect("8.8.8.8:80").map_err(|e| e.to_string())?;
+    Ok(socket
+        .local_addr()
+        .map_err(|e| e.to_string())?
+        .ip()
+        .to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -2036,6 +2047,7 @@ pub fn run() {
             settings_update,
             reset_all_data,
             session_history,
+            get_local_ip,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

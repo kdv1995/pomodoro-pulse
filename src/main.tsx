@@ -5,6 +5,7 @@ import App from "./App";
 import {
   Toaster
 } from "@/components/ui/sonner";
+import { TooltipProvider } from "@radix-ui/react-tooltip";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,8 +19,10 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
-      <Toaster />
+      <TooltipProvider>
+        <App />
+        <Toaster />
+      </TooltipProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 );

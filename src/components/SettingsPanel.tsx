@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { AppSettings } from "../types";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -5,6 +6,9 @@ import { Input } from "@/components/ui/input";
 // If label is not installed, I use standard label with classes.
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { invoke } from "@tauri-apps/api/core";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 
 interface SettingsPanelProps {
     settings: AppSettings | null;
@@ -14,10 +18,39 @@ interface SettingsPanelProps {
 
 export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPanelProps) {
     if (!settings) return null;
+    const [localIp, setLocalIp] = useState("YOUR_LOCAL_IP");
+
+    useEffect(() => {
+        let active = true;
+
+        invoke<string>("get_local_ip")
+            .then((ip) => {
+                if (active && ip) {
+                    setLocalIp(ip);
+                }
+            })
+            .catch(() => {
+                if (active) {
+                    setLocalIp("YOUR_LOCAL_IP");
+                }
+            });
+
+        return () => {
+            active = false;
+        };
+    }, []);
 
     const handleChange = (field: keyof AppSettings, value: number | boolean | string) => {
         onUpdate({ ...settings, [field]: value });
     };
+
+    const handleCopyIP = () => {
+        navigator.clipboard.writeText(`http://${localIp}:${settings.remoteControlPort}/?token=${settings.remoteControlToken}`);
+        toast.success("Remote control URL copied to clipboard!", {
+            position: "top-center",
+        })
+    };
+
 
     return (
         <Card>
@@ -156,7 +189,19 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                                 disabled={!settings.remoteControlEnabled}
                             />
                             <p className="text-xs text-muted-foreground">
-                                Remote URL: <span className="font-mono break-all">http://YOUR_LOCAL_NETWORK_PC_IP:{settings.remoteControlPort}/?token={settings.remoteControlToken}</span>
+                                Remote URL: 
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="ml-1 cursor-pointer rounded px-1 text-xs font-mono bg-muted/50" onClick={handleCopyIP}>
+                                            {settings.remoteControlEnabled ? `http://${localIp}:${settings.remoteControlPort}/?token=${settings.remoteControlToken}` : "Enable Remote Control to see URL"}
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p className="text-xs">
+                                            {settings.remoteControlEnabled ? `Click to copy` : "Enable Remote Control to see URL"}
+                                        </p>
+                                    </TooltipContent>
+                                </Tooltip>
                             </p>
                         </div>
                     </div>
