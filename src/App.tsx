@@ -450,7 +450,7 @@ export default function App() {
   }
 
   async function onResetAllData() {
-    const confirmed = window.confirm(
+    const confirmed = await window.confirm(
       "This permanently deletes all sessions, projects, tags, and resets settings. Continue?",
     );
     if (!confirmed) {
