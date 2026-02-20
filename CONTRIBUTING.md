@@ -35,21 +35,16 @@ npm run tauri dev
 ## Before Opening A PR
 
 ```bash
+npm run verify:twice
+```
+
+If you do not need a full macOS bundle build locally, run the minimum set:
+
+```bash
+npm run test:run
 npm run build
 npm run version:check
-```
-
-Also run formatting:
-
-```bash
-cd src-tauri
-cargo fmt
-```
-
-If your change affects the desktop bundle on macOS, also test:
-
-```bash
-npm run tauri build
+cd src-tauri && cargo fmt --all -- --check && cargo test
 ```
 
 ## Versioning / Releases

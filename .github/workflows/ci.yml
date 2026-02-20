@@ -45,6 +45,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Frontend tests
+        run: npm run test:run
+
       - name: Frontend build
         run: npm run build
 
@@ -61,9 +64,24 @@ jobs:
 
       - name: Tauri bundle build (Windows)
         if: runner.os == 'Windows'
-        run: npm run tauri build -- --bundles nsis,msi
+        shell: pwsh
+        run: |
+          $maxAttempts = 3
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "Windows bundle attempt $attempt/$maxAttempts"
+            npm run tauri build -- --bundles nsis,msi
+            if ($LASTEXITCODE -eq 0) {
+              break
+            }
+
+            if ($attempt -eq $maxAttempts) {
+              exit $LASTEXITCODE
+            }
+
+            Write-Warning "Windows bundle failed (likely transient download issue). Retrying in 15 seconds..."
+            Start-Sleep -Seconds 15
+          }
 
       - name: Tauri bundle build (macOS)
         if: runner.os == 'macOS'
         run: npm run tauri build -- --bundles dmg
-

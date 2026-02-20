@@ -22,6 +22,9 @@ export default function StatsChart({ period, onPeriodChange, timeseriesData, ses
             }));
 
             sessionData?.forEach(session => {
+                if (session.phase !== "focus") {
+                    return;
+                }
                 const hour = new Date(session.startedAt * 1000).getHours();
                 hours[hour].value += session.durationSec / 60; // Minutes
             });

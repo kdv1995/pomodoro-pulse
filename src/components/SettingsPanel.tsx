@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { AppSettings } from "../types";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-// Label removed
-// If label is not installed, I use standard label with classes.
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { invoke } from "@tauri-apps/api/core";
@@ -44,12 +42,21 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
         onUpdate({ ...settings, [field]: value });
     };
 
-    const handleCopyIP = () => {
-        if(!settings.remoteControlEnabled) return;
-        navigator.clipboard.writeText(`http://${localIp}:${settings.remoteControlPort}/?token=${settings.remoteControlToken}`);
-        toast.success("Remote control URL copied to clipboard!", {
-            position: "top-center",
-        })
+    const remoteUrl = `http://${localIp}:${settings.remoteControlPort}/?token=${settings.remoteControlToken}`;
+
+    const handleCopyIP = async () => {
+        if (!settings.remoteControlEnabled) return;
+
+        try {
+            await navigator.clipboard.writeText(remoteUrl);
+            toast.success("Remote control URL copied to clipboard!", {
+                position: "top-center",
+            });
+        } catch {
+            toast.error("Failed to copy remote control URL.", {
+                position: "top-center",
+            });
+        }
     };
 
 
@@ -193,13 +200,17 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                                 Remote URL: 
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <span className="ml-1 cursor-pointer rounded px-1 text-xs font-mono bg-muted/50" onClick={handleCopyIP}>
-                                            {settings.remoteControlEnabled ? `http://${localIp}:${settings.remoteControlPort}/?token=${settings.remoteControlToken}` : "Enable Remote Control to see URL"}
+                                        <span
+                                            className={`ml-1 rounded px-1 text-xs font-mono bg-muted/50 ${settings.remoteControlEnabled ? "cursor-pointer" : "cursor-not-allowed opacity-70"}`}
+                                            onClick={settings.remoteControlEnabled ? () => { void handleCopyIP(); } : undefined}
+                                            aria-disabled={!settings.remoteControlEnabled}
+                                        >
+                                            {settings.remoteControlEnabled ? remoteUrl : "Enable Remote Control to see URL"}
                                         </span>
                                     </TooltipTrigger>
                                     <TooltipContent>
                                         <p className="text-xs">
-                                            {settings.remoteControlEnabled ? `Click to copy` : "Enable Remote Control to see URL"}
+                                            {settings.remoteControlEnabled ? "Click to copy" : "Enable Remote Control to see URL"}
                                         </p>
                                     </TooltipContent>
                                 </Tooltip>

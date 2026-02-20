@@ -15,7 +15,6 @@ export default function TitleBar() {
     const toggleMaximize = async () => {
         const win = getCurrentWindow();
         const max = await win.isMaximized();
-        console.log(123)
         if (max) {
             await win.unmaximize();
         } else {

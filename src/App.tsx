@@ -38,6 +38,7 @@ import type {
   TimerState,
 } from "./types";
 import "./App.css";
+import { buildAnalyticsRange, statsDaysForPeriod } from "./lib/analyticsRange";
 
 // Components
 import TimerDisplay from "./components/TimerDisplay";
@@ -59,8 +60,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-
-const DAY_SECONDS = 86_400;
 
 function phaseLabel(phase: TimerPhase) {
   switch (phase) {
@@ -102,8 +101,6 @@ export default function App() {
   const [timer, setTimer] = useState<TimerState | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
-  const [filterProjectId] = useState<number | undefined>();
-  const [filterTagId] = useState<number | undefined>();
   const [rangeDays, setRangeDays] = useState(14);
   const [settingsDraft, setSettingsDraft] = useState<AppSettings | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
@@ -116,32 +113,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"timer" | "stats" | "settings">("timer");
   const [statsPeriod, setStatsPeriod] = useState<"day" | "week" | "month">("week");
 
-  const analyticsRange: AnalyticsRange = useMemo(() => {
-    const to = Math.floor(Date.now() / 1000);
-    // Determine range based on statsPeriod
-    let days = rangeDays; // Default for history list
-    if (activeTab === "stats") {
-      if (statsPeriod === "day") days = 1;
-      else if (statsPeriod === "week") days = 7;
-      else if (statsPeriod === "month") days = 30;
-    }
-
-    // For "day" view we might want current day, but the API takes a range.
-    // If we want "Today", from = start of day, to = end of day or current time.
-    // However, existing logic uses `rangeDays * 86400` back from now. 
-    // Let's stick to the simple logic: Day = last 24h, Week = last 7d, Month = last 30d for now, 
-    // or better alignment with the `StatsChart` expectation.
-    // Actually, `StatsChart` for "day" expects `sessionData`. 
-    // `sessionHistory` is fetched based on `analyticsRange`.
-
-    const from = to - days * DAY_SECONDS;
-    return {
-      from,
-      to,
-      projectId: filterProjectId,
-      tagId: filterTagId,
-    };
-  }, [filterProjectId, filterTagId, rangeDays, statsPeriod, activeTab]);
+  const statsRange: AnalyticsRange = useMemo(
+    () => buildAnalyticsRange(statsDaysForPeriod(statsPeriod)),
+    [statsPeriod],
+  );
+  const historyRange: AnalyticsRange = useMemo(
+    () => buildAnalyticsRange(rangeDays),
+    [rangeDays],
+  );
 
   const settingsQuery = useQuery({
     queryKey: ["settings"],
@@ -159,19 +138,24 @@ export default function App() {
   });
 
   const summaryQuery = useQuery({
-    queryKey: ["summary", analyticsRange],
-    queryFn: () => analyticsGetSummary(analyticsRange),
+    queryKey: ["summary", statsRange],
+    queryFn: () => analyticsGetSummary(statsRange),
   });
 
   // Now capturing the data for the chart
   const seriesQuery = useQuery({
-    queryKey: ["series", analyticsRange],
-    queryFn: () => analyticsGetTimeseries(analyticsRange),
+    queryKey: ["series", statsRange],
+    queryFn: () => analyticsGetTimeseries(statsRange),
   });
 
   const historyQuery = useQuery({
-    queryKey: ["history", analyticsRange],
-    queryFn: () => sessionHistory(analyticsRange),
+    queryKey: ["history", historyRange],
+    queryFn: () => sessionHistory(historyRange),
+  });
+
+  const statsHistoryQuery = useQuery({
+    queryKey: ["history-stats", statsRange],
+    queryFn: () => sessionHistory(statsRange),
   });
 
   useEffect(() => {
@@ -242,6 +226,7 @@ export default function App() {
           queryClient.invalidateQueries({ queryKey: ["summary"] });
           queryClient.invalidateQueries({ queryKey: ["series"] });
           queryClient.invalidateQueries({ queryKey: ["history"] });
+          queryClient.invalidateQueries({ queryKey: ["history-stats"] });
         },
       );
 
@@ -249,6 +234,7 @@ export default function App() {
         queryClient.invalidateQueries({ queryKey: ["summary"] });
         queryClient.invalidateQueries({ queryKey: ["series"] });
         queryClient.invalidateQueries({ queryKey: ["history"] });
+        queryClient.invalidateQueries({ queryKey: ["history-stats"] });
       });
     }
 
@@ -268,6 +254,7 @@ export default function App() {
       queryClient.invalidateQueries({ queryKey: ["summary"] }),
       queryClient.invalidateQueries({ queryKey: ["series"] }),
       queryClient.invalidateQueries({ queryKey: ["history"] }),
+      queryClient.invalidateQueries({ queryKey: ["history-stats"] }),
       queryClient.invalidateQueries({ queryKey: ["projects"] }),
       queryClient.invalidateQueries({ queryKey: ["tags"] }),
       queryClient.invalidateQueries({ queryKey: ["settings"] }),
@@ -366,6 +353,16 @@ export default function App() {
         duration: 1500,
       });
     } catch (error) {
+      const details = toErrorMessage(error).toLowerCase();
+      if (details.includes("remote control server")) {
+        reportActionError(
+          "Failed to save settings.",
+          new Error(
+            `Remote port ${settingsDraft.remoteControlPort} is unavailable. Choose another port and try again.`,
+          ),
+        );
+        return;
+      }
       reportActionError("Failed to save settings.", error);
     }
   }
@@ -427,7 +424,7 @@ export default function App() {
   async function onExportCsv() {
     setStatusMessage("");
     try {
-      await exportCsv(analyticsRange);
+      await exportCsv(historyRange);
       setStatusMessage("CSV export saved.");
       toast.success("CSV exported.", {
         position: "top-center",
@@ -441,7 +438,7 @@ export default function App() {
   async function onExportJson() {
     setStatusMessage("");
     try {
-      await exportJson(analyticsRange);
+      await exportJson(historyRange);
       setStatusMessage("JSON export saved.");
       toast.success("JSON exported.", {
         position: "top-center",
@@ -456,7 +453,6 @@ export default function App() {
     const confirmed = await window.confirm(
       "This permanently deletes all sessions, projects, tags, and resets settings. Continue?",
     );
-    console.log(confirmed)
     if (!confirmed) {
       return;
     }
@@ -610,7 +606,11 @@ export default function App() {
                   period={statsPeriod}
                   onPeriodChange={setStatsPeriod}
                   timeseriesData={seriesQuery.data ?? []}
-                  sessionData={historyQuery.data ?? []}
+                  sessionData={
+                    statsPeriod === "day"
+                      ? (statsHistoryQuery.data ?? [])
+                      : (historyQuery.data ?? [])
+                  }
                 />
 
                 <div className="rounded-xl border bg-card text-card-foreground shadow-sm">

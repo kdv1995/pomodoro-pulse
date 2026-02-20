@@ -811,6 +811,16 @@ fn remote_stop(remote: &mut RemoteControlState) {
     }
 }
 
+fn bind_remote_listener(port: u16) -> AppResult<TcpListener> {
+    let addr = format!("0.0.0.0:{port}");
+    let listener = TcpListener::bind(&addr)
+        .map_err(|e| format!("remote control server bind failed on {addr}: {e}"))?;
+    listener
+        .set_nonblocking(true)
+        .map_err(|e| format!("remote control server nonblocking setup failed on {addr}: {e}"))?;
+    Ok(listener)
+}
+
 fn remote_apply(app: &AppHandle, settings: &AppSettings) -> AppResult<()> {
     let state = app.state::<AppState>();
     let mut remote = state.remote.lock().map_err(|e| e.to_string())?;
@@ -832,11 +842,12 @@ fn remote_apply(app: &AppHandle, settings: &AppSettings) -> AppResult<()> {
 
     remote_stop(&mut remote);
 
+    let listener = bind_remote_listener(port)?;
     let stop = Arc::new(AtomicBool::new(true));
     let stop_thread = stop.clone();
     let app_handle = app.clone();
 
-    let join = thread::spawn(move || remote_server_loop(app_handle, port, stop_thread));
+    let join = thread::spawn(move || remote_server_loop(app_handle, listener, stop_thread));
     remote.server = Some(RemoteServerHandle {
         port,
         stop,
@@ -1245,17 +1256,7 @@ fn remote_handle_connection(app: &AppHandle, mut stream: std::net::TcpStream) {
     }
 }
 
-fn remote_server_loop(app: AppHandle, port: u16, stop: Arc<AtomicBool>) {
-    let addr = format!("0.0.0.0:{port}");
-    let listener = match TcpListener::bind(&addr) {
-        Ok(l) => l,
-        Err(e) => {
-            eprintln!("remote control server bind failed on {addr}: {e}");
-            return;
-        }
-    };
-    let _ = listener.set_nonblocking(true);
-
+fn remote_server_loop(app: AppHandle, listener: TcpListener, stop: Arc<AtomicBool>) {
     while stop.load(Ordering::SeqCst) {
         match listener.accept() {
             Ok((stream, _)) => {
@@ -1918,7 +1919,7 @@ fn settings_update(
     };
 
     // Start/stop/restart remote control server based on settings.
-    let _ = remote_apply(&app, &settings);
+    remote_apply(&app, &settings)?;
 
     emit_timer_state(&app, &timer);
     Ok(settings)
@@ -1958,7 +1959,7 @@ fn reset_all_data(app: AppHandle, state: State<'_, AppState>) -> AppResult<Reset
         (model.settings.clone(), model.timer.clone())
     };
 
-    let _ = remote_apply(&app, &settings);
+    remote_apply(&app, &settings)?;
     emit_timer_state(&app, &timer);
     Ok(ResetAllResult { settings, timer })
 }
@@ -2023,7 +2024,9 @@ pub fn run() {
             {
                 let state = app.state::<AppState>();
                 let model = state.model.lock().map_err(|e| e.to_string())?;
-                let _ = remote_apply(app.handle(), &model.settings);
+                if let Err(error) = remote_apply(app.handle(), &model.settings) {
+                    eprintln!("remote control startup warning: {error}");
+                }
             }
             Ok(())
         })
@@ -2116,5 +2119,33 @@ mod tests {
         ];
 
         assert!(calculate_streak_days(&sessions) >= 2);
+    }
+
+    #[test]
+    fn remote_listener_bind_succeeds_on_available_port() {
+        let probe = TcpListener::bind("127.0.0.1:0").expect("failed to reserve probe port");
+        let port = probe
+            .local_addr()
+            .expect("failed to get probe local addr")
+            .port();
+        drop(probe);
+
+        let listener = bind_remote_listener(port).expect("expected bind to succeed");
+        let _ = listener
+            .local_addr()
+            .expect("listener should have local addr");
+    }
+
+    #[test]
+    fn remote_listener_bind_returns_error_when_port_is_occupied() {
+        let occupied =
+            TcpListener::bind("0.0.0.0:0").expect("failed to reserve an occupied test port");
+        let port = occupied
+            .local_addr()
+            .expect("failed to get occupied local addr")
+            .port();
+
+        let err = bind_remote_listener(port).expect_err("expected occupied port bind failure");
+        assert!(err.contains("bind failed"));
     }
 }
