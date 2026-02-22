@@ -1,5 +1,5 @@
 export type TimerPhase = "focus" | "short_break" | "long_break";
-export type AppTheme = "light" | "dark";
+export type AppTheme = string;
 
 export interface AppSettings {
   focusMin: number;
@@ -12,6 +12,13 @@ export interface AppSettings {
   remoteControlEnabled: boolean;
   remoteControlPort: number;
   remoteControlToken: string;
+  customThemes: CustomTheme[];
+}
+
+export interface CustomTheme {
+  id: string;
+  name: string;
+  cssVars: string;
 }
 
 export interface AppSettingsPatch {
@@ -25,6 +32,7 @@ export interface AppSettingsPatch {
   remoteControlEnabled?: boolean;
   remoteControlPort?: number;
   remoteControlToken?: string;
+  customThemes?: CustomTheme[];
 }
 
 export interface TimerState {
