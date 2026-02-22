@@ -78,7 +78,17 @@ struct AppSettings {
     remote_control_enabled: bool,
     remote_control_port: i64,
     remote_control_token: String,
+    custom_themes: Vec<CustomTheme>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CustomTheme {
+    id: String,
+    name: String,
+    css_vars: String,
+}
+
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -93,6 +103,7 @@ impl Default for AppSettings {
             remote_control_enabled: false,
             remote_control_port: 48484,
             remote_control_token: String::new(),
+            custom_themes: Vec::new(),
         }
     }
 }
@@ -120,6 +131,7 @@ struct AppSettingsPatch {
     remote_control_enabled: Option<bool>,
     remote_control_port: Option<i64>,
     remote_control_token: Option<String>,
+    custom_themes: Option<Vec<CustomTheme>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -405,10 +417,9 @@ fn normalize_settings(mut settings: AppSettings) -> AppSettings {
     settings.short_break_min = settings.short_break_min.clamp(1, 60);
     settings.long_break_min = settings.long_break_min.clamp(1, 90);
     settings.long_break_every = settings.long_break_every.clamp(2, 10);
-    settings.theme = match settings.theme.as_str() {
-        "dark" => "dark".to_string(),
-        _ => "light".to_string(),
-    };
+    if settings.theme.is_empty() {
+        settings.theme = "light".to_string();
+    }
     settings.remote_control_port = settings.remote_control_port.clamp(1024, 65535);
     settings
 }

@@ -6,7 +6,27 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { invoke } from "@tauri-apps/api/core";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+
+function hexToHsl(hex: string): string {
+    let r = parseInt(hex.slice(1, 3), 16) / 255;
+    let g = parseInt(hex.slice(3, 5), 16) / 255;
+    let b = parseInt(hex.slice(5, 7), 16) / 255;
+    let max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h = 0, s = 0, l = (max + min) / 2;
+    if (max !== min) {
+        let d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+    }
+    return `${(h * 360).toFixed(1)} ${(s * 100).toFixed(1)}% ${(l * 100).toFixed(1)}%`;
+}
 
 interface SettingsPanelProps {
     settings: AppSettings | null;
@@ -17,6 +37,13 @@ interface SettingsPanelProps {
 export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPanelProps) {
     if (!settings) return null;
     const [localIp, setLocalIp] = useState("YOUR_LOCAL_IP");
+
+    // Custom Theme Draft
+    const [newThemeName, setNewThemeName] = useState("");
+    const [newThemeBg, setNewThemeBg] = useState("#000000");
+    const [newThemeFg, setNewThemeFg] = useState("#ffffff");
+    const [newThemePrimary, setNewThemePrimary] = useState("#0071e3");
+
 
     useEffect(() => {
         let active = true;
@@ -57,6 +84,60 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                 position: "top-center",
             });
         }
+    };
+
+    const handleAddCustomTheme = () => {
+        if (!newThemeName.trim()) {
+            toast.error("Theme name is required.");
+            return;
+        }
+
+        const cssVars = `
+          --background: ${hexToHsl(newThemeBg)};
+          --foreground: ${hexToHsl(newThemeFg)};
+          --card: ${hexToHsl(newThemeBg)};
+          --card-foreground: ${hexToHsl(newThemeFg)};
+          --popover: ${hexToHsl(newThemeBg)};
+          --popover-foreground: ${hexToHsl(newThemeFg)};
+          --primary: ${hexToHsl(newThemePrimary)};
+          --primary-foreground: ${hexToHsl(newThemeBg)};
+          --secondary: ${hexToHsl(newThemeBg)};
+          --secondary-foreground: ${hexToHsl(newThemeFg)};
+          --muted: ${hexToHsl(newThemeBg)};
+          --muted-foreground: ${hexToHsl(newThemePrimary)};
+          --accent: ${hexToHsl(newThemeBg)};
+          --accent-foreground: ${hexToHsl(newThemeFg)};
+          --destructive: 3 100% 50%;
+          --destructive-foreground: ${hexToHsl(newThemeFg)};
+          --border: ${hexToHsl(newThemePrimary)};
+          --input: ${hexToHsl(newThemePrimary)};
+          --ring: ${hexToHsl(newThemePrimary)};
+        `;
+
+        const customThemes = settings.customThemes || [];
+        const newTheme = {
+            id: 'custom-' + Date.now().toString(),
+            name: newThemeName.trim(),
+            cssVars: cssVars,
+        };
+
+        onUpdate({
+            ...settings,
+            customThemes: [...customThemes, newTheme],
+            theme: newTheme.id
+        });
+        setNewThemeName("");
+        toast.success("Custom theme created and applied!", { position: "top-center" });
+    };
+
+    const handleDeleteTheme = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const customThemes = settings.customThemes || [];
+        onUpdate({
+            ...settings,
+            customThemes: customThemes.filter(t => t.id !== id),
+            theme: settings.theme === id ? "light" : settings.theme
+        });
     };
 
 
@@ -118,19 +199,60 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                 </div>
 
                 <div className="space-y-4">
-                    <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                    <div className="flex flex-col gap-3 rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
                             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                Dark Mode
+                                Application Theme
                             </label>
                             <p className="text-xs text-muted-foreground">
-                                Switch between light and dark application theme.
+                                Select light, dark, or one of your custom themes.
                             </p>
                         </div>
-                        <Switch
-                            checked={settings.theme === "dark"}
-                            onCheckedChange={(checked) => handleChange("theme", checked ? "dark" : "light")}
-                        />
+                        <Select
+                            value={settings.theme || "light"}
+                            onValueChange={(val) => handleChange("theme", val)}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a theme" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="light">Light Default</SelectItem>
+                                <SelectItem value="dark">Dark Default</SelectItem>
+                                {settings.customThemes?.map(t => (
+                                    <SelectItem key={t.id} value={t.id}>
+                                        <div className="flex items-center justify-between w-full">
+                                            <span>{t.name}</span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        {(settings.customThemes?.length ?? 0) > 0 && (
+                            <div className="flex flex-col gap-2 mt-2 border-t pt-2">
+                                <span className="text-xs font-semibold">Saved Custom Themes:</span>
+                                {settings.customThemes?.map(t => (
+                                    <div key={t.id} className="flex justify-between items-center text-sm border px-2 py-1 rounded">
+                                        <span>{t.name}</span>
+                                        <button className="text-destructive hover:underline text-xs" onClick={(e) => handleDeleteTheme(t.id, e)}>Delete</button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="flex flex-col gap-2 mt-4 border-t pt-4">
+                            <span className="text-xs font-semibold">Create New Theme</span>
+                            <Input placeholder="Theme Name" value={newThemeName} onChange={e => setNewThemeName(e.target.value)} />
+                            <div className="flex gap-2 text-xs items-center">
+                                <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeBg} onChange={e => setNewThemeBg(e.target.value)} title="Background" />
+                                <span>Background</span>
+                                <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer ml-2" value={newThemeFg} onChange={e => setNewThemeFg(e.target.value)} title="Text" />
+                                <span>Text</span>
+                                <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer ml-2" value={newThemePrimary} onChange={e => setNewThemePrimary(e.target.value)} title="Primary" />
+                                <span>Primary</span>
+                            </div>
+                            <Button variant="secondary" size="sm" onClick={handleAddCustomTheme} className="w-full mt-2">Add Theme</Button>
+                        </div>
                     </div>
 
                     <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
@@ -197,7 +319,7 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                                 disabled={!settings.remoteControlEnabled}
                             />
                             <p className="text-xs text-muted-foreground">
-                                Remote URL: 
+                                Remote URL:
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <span
