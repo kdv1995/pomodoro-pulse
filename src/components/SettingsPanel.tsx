@@ -38,10 +38,14 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
     if (!settings) return null;
     const [localIp, setLocalIp] = useState("YOUR_LOCAL_IP");
 
+    const [editThemeId, setEditThemeId] = useState<string | null>(null);
     const [newThemeName, setNewThemeName] = useState("");
     const [newThemeBg, setNewThemeBg] = useState("#000000");
     const [newThemeFg, setNewThemeFg] = useState("#ffffff");
     const [newThemePrimary, setNewThemePrimary] = useState("#0071e3");
+    const [newThemeMutedFg, setNewThemeMutedFg] = useState("#86868b");
+    const [newThemeAccent, setNewThemeAccent] = useState("#27272a");
+    const [newThemeBorder, setNewThemeBorder] = useState("#3f3f46");
 
     useEffect(() => {
         let active = true;
@@ -99,33 +103,64 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
           --popover-foreground: ${hexToHsl(newThemeFg)};
           --primary: ${hexToHsl(newThemePrimary)};
           --primary-foreground: ${hexToHsl(newThemeBg)};
-          --secondary: ${hexToHsl(newThemeBg)};
+          --secondary: ${hexToHsl(newThemeAccent)};
           --secondary-foreground: ${hexToHsl(newThemeFg)};
-          --muted: ${hexToHsl(newThemeBg)};
-          --muted-foreground: ${hexToHsl(newThemePrimary)};
-          --accent: ${hexToHsl(newThemeBg)};
+          --muted: ${hexToHsl(newThemeAccent)};
+          --muted-foreground: ${hexToHsl(newThemeMutedFg)};
+          --accent: ${hexToHsl(newThemeAccent)};
           --accent-foreground: ${hexToHsl(newThemeFg)};
           --destructive: 3 100% 50%;
           --destructive-foreground: ${hexToHsl(newThemeFg)};
-          --border: ${hexToHsl(newThemePrimary)};
-          --input: ${hexToHsl(newThemePrimary)};
+          --border: ${hexToHsl(newThemeBorder)};
+          --input: ${hexToHsl(newThemeBorder)};
           --ring: ${hexToHsl(newThemePrimary)};
         `;
 
-        const customThemes = settings.customThemes || [];
         const newTheme = {
-            id: 'custom-' + Date.now().toString(),
+            id: editThemeId || 'custom-' + Date.now().toString(),
             name: newThemeName.trim(),
             cssVars: cssVars,
+            colors: {
+                bg: newThemeBg,
+                fg: newThemeFg,
+                primary: newThemePrimary,
+                mutedFg: newThemeMutedFg,
+                accent: newThemeAccent,
+                border: newThemeBorder,
+            }
         };
 
-        onUpdate({
-            ...settings,
-            customThemes: [...customThemes, newTheme],
-            theme: newTheme.id
-        });
+        const customThemes = settings.customThemes || [];
+
+        if (editThemeId) {
+            onUpdate({
+                ...settings,
+                customThemes: customThemes.map(t => t.id === editThemeId ? newTheme : t),
+                theme: settings.theme === editThemeId ? newTheme.id : settings.theme
+            });
+            setEditThemeId(null);
+            toast.success("Custom theme updated!", { position: "top-center" });
+        } else {
+            onUpdate({
+                ...settings,
+                customThemes: [...customThemes, newTheme],
+                theme: newTheme.id
+            });
+            toast.success("Custom theme created and applied!", { position: "top-center" });
+        }
         setNewThemeName("");
-        toast.success("Custom theme created and applied!", { position: "top-center" });
+    };
+
+    const handleEditTheme = (t: any, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setEditThemeId(t.id);
+        setNewThemeName(t.name);
+        setNewThemeBg(t.colors?.bg ?? "#000000");
+        setNewThemeFg(t.colors?.fg ?? "#ffffff");
+        setNewThemePrimary(t.colors?.primary ?? "#0071e3");
+        setNewThemeMutedFg(t.colors?.mutedFg ?? "#86868b");
+        setNewThemeAccent(t.colors?.accent ?? "#27272a");
+        setNewThemeBorder(t.colors?.border ?? "#3f3f46");
     };
 
     const handleDeleteTheme = (id: string, e: React.MouseEvent) => {
@@ -227,29 +262,58 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                         </Select>
 
                         {(settings.customThemes?.length ?? 0) > 0 && (
-                            <div className="flex flex-col gap-2 mt-2 border-t pt-2">
+                            <div className="flex flex-col gap-2 mt-2 pt-2">
                                 <span className="text-xs font-semibold">Saved Custom Themes:</span>
                                 {settings.customThemes?.map(t => (
                                     <div key={t.id} className="flex justify-between items-center text-sm border px-2 py-1 rounded">
                                         <span>{t.name}</span>
-                                        <button className="text-destructive hover:underline text-xs" onClick={(e) => handleDeleteTheme(t.id, e)}>Delete</button>
+                                        <div className="flex gap-2">
+                                            <button className="text-primary hover:underline text-xs" onClick={(e) => handleEditTheme(t, e)}>Edit</button>
+                                            <button className="text-destructive hover:underline text-xs" onClick={(e) => handleDeleteTheme(t.id, e)}>Delete</button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
                         )}
 
-                        <div className="flex flex-col gap-2 mt-4 border-t pt-4">
-                            <span className="text-xs font-semibold">Create New Theme</span>
+                        <div className="flex flex-col gap-2 mt-4 pt-4">
+                            <span className="text-xs font-semibold">{editThemeId ? "Edit Theme" : "Create New Theme"}</span>
                             <Input placeholder="Theme Name" value={newThemeName} onChange={e => setNewThemeName(e.target.value)} />
-                            <div className="flex gap-2 text-xs items-center">
-                                <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeBg} onChange={e => setNewThemeBg(e.target.value)} title="Background" />
-                                <span>Background</span>
-                                <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer ml-2" value={newThemeFg} onChange={e => setNewThemeFg(e.target.value)} title="Text" />
-                                <span>Text</span>
-                                <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer ml-2" value={newThemePrimary} onChange={e => setNewThemePrimary(e.target.value)} title="Primary" />
-                                <span>Primary</span>
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-xs mt-2">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeBg} onChange={e => setNewThemeBg(e.target.value)} title="Background" />
+                                    <span>Background</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeFg} onChange={e => setNewThemeFg(e.target.value)} title="Text" />
+                                    <span>Text</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemePrimary} onChange={e => setNewThemePrimary(e.target.value)} title="Primary" />
+                                    <span>Primary</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeMutedFg} onChange={e => setNewThemeMutedFg(e.target.value)} title="Muted Text" />
+                                    <span>Muted Text</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeAccent} onChange={e => setNewThemeAccent(e.target.value)} title="Accent / Active" />
+                                    <span>Accent</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeBorder} onChange={e => setNewThemeBorder(e.target.value)} title="Border" />
+                                    <span>Border</span>
+                                </label>
                             </div>
-                            <Button variant="secondary" size="sm" onClick={handleAddCustomTheme} className="w-full mt-2">Add Theme</Button>
+                            <div className="flex gap-2 mt-2">
+                                {editThemeId && (
+                                    <Button variant="outline" size="sm" onClick={() => {
+                                        setEditThemeId(null);
+                                        setNewThemeName("");
+                                    }} className="w-full">Cancel</Button>
+                                )}
+                                <Button variant="secondary" size="sm" onClick={handleAddCustomTheme} className="w-full">{editThemeId ? "Update Theme" : "Add Theme"}</Button>
+                            </div>
                         </div>
                     </div>
 

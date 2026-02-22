@@ -83,10 +83,23 @@ struct AppSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct CustomThemeColors {
+    bg: String,
+    fg: String,
+    primary: String,
+    muted_fg: String,
+    accent: String,
+    border: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CustomTheme {
     id: String,
     name: String,
     css_vars: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    colors: Option<CustomThemeColors>,
 }
 
 impl Default for AppSettings {

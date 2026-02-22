@@ -19,6 +19,14 @@ export interface CustomTheme {
   id: string;
   name: string;
   cssVars: string;
+  colors?: {
+    bg: string;
+    fg: string;
+    primary: string;
+    mutedFg: string;
+    accent: string;
+    border: string;
+  };
 }
 
 export interface AppSettingsPatch {
