@@ -281,27 +281,27 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                             <Input placeholder="Theme Name" value={newThemeName} onChange={e => setNewThemeName(e.target.value)} />
                             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-xs mt-2">
                                 <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeBg} onChange={e => setNewThemeBg(e.target.value)} title="Background" />
+                                    <Input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeBg} onChange={e => setNewThemeBg(e.target.value)} title="Background" />
                                     <span>Background</span>
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeFg} onChange={e => setNewThemeFg(e.target.value)} title="Text" />
+                                    <Input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeFg} onChange={e => setNewThemeFg(e.target.value)} title="Text" />
                                     <span>Text</span>
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemePrimary} onChange={e => setNewThemePrimary(e.target.value)} title="Primary" />
+                                    <Input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemePrimary} onChange={e => setNewThemePrimary(e.target.value)} title="Primary" />
                                     <span>Primary</span>
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeMutedFg} onChange={e => setNewThemeMutedFg(e.target.value)} title="Muted Text" />
+                                    <Input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeMutedFg} onChange={e => setNewThemeMutedFg(e.target.value)} title="Muted Text" />
                                     <span>Muted Text</span>
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeAccent} onChange={e => setNewThemeAccent(e.target.value)} title="Accent / Active" />
+                                    <Input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeAccent} onChange={e => setNewThemeAccent(e.target.value)} title="Accent / Active" />
                                     <span>Accent</span>
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeBorder} onChange={e => setNewThemeBorder(e.target.value)} title="Border" />
+                                    <Input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={newThemeBorder} onChange={e => setNewThemeBorder(e.target.value)} title="Border" />
                                     <span>Border</span>
                                 </label>
                             </div>
