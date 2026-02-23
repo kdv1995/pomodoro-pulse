@@ -90,10 +90,7 @@ fn normalize_settings(mut settings: AppSettings) -> AppSettings {
     settings.short_break_min = settings.short_break_min.clamp(1, 60);
     settings.long_break_min = settings.long_break_min.clamp(1, 90);
     settings.long_break_every = settings.long_break_every.clamp(2, 10);
-    settings.theme = match settings.theme.as_str() {
-        "dark" => "dark".to_string(),
-        _ => "light".to_string(),
-    };
+    normalize_theme_settings(&mut settings);
     settings.remote_control_port = settings.remote_control_port.clamp(1024, 65535);
     settings
 }

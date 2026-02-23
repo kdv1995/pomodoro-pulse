@@ -27,6 +27,7 @@ const APP_SETTINGS_KEY: &str = "app_settings";
 const TIMER_STATE_KEY: &str = "timer_state";
 const TRAY_ID: &str = "pomodoro-tray";
 
+include!("core/theme.rs");
 include!("core/models.rs");
 include!("data/storage.rs");
 include!("core/timer.rs");

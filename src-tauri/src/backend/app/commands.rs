@@ -380,7 +380,7 @@ fn settings_update(
             model.settings.long_break_every = v;
         }
         if let Some(v) = patch.theme {
-            model.settings.theme = v.trim().to_lowercase();
+            model.settings.theme = v.trim().to_string();
         }
         if let Some(v) = patch.sound_enabled {
             model.settings.sound_enabled = v;
@@ -396,6 +396,9 @@ fn settings_update(
         }
         if let Some(v) = patch.remote_control_token {
             model.settings.remote_control_token = v;
+        }
+        if let Some(v) = patch.custom_themes {
+            model.settings.custom_themes = v;
         }
 
         model.settings = normalize_settings(model.settings.clone());

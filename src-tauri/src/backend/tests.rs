@@ -12,6 +12,7 @@ fn sample_settings() -> AppSettings {
         remote_control_enabled: false,
         remote_control_port: 48484,
         remote_control_token: "testtoken".to_string(),
+        custom_themes: Vec::new(),
     }
 }
 

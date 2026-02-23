@@ -49,6 +49,7 @@ struct AppSettings {
     remote_control_enabled: bool,
     remote_control_port: i64,
     remote_control_token: String,
+    custom_themes: Vec<CustomTheme>,
 }
 
 impl Default for AppSettings {
@@ -64,6 +65,7 @@ impl Default for AppSettings {
             remote_control_enabled: false,
             remote_control_port: 48484,
             remote_control_token: String::new(),
+            custom_themes: Vec::new(),
         }
     }
 }
@@ -91,6 +93,7 @@ struct AppSettingsPatch {
     remote_control_enabled: Option<bool>,
     remote_control_port: Option<i64>,
     remote_control_token: Option<String>,
+    custom_themes: Option<Vec<CustomTheme>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
