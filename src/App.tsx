@@ -31,7 +31,6 @@ import {
 import type {
   AnalyticsRange,
   AppSettings,
-  AppTheme,
   PhaseCompletedEvent,
   SessionRecord,
   TimerPhase,
@@ -166,10 +165,32 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const theme: AppTheme = settingsDraft?.theme === "dark" ? "dark" : "light";
-    root.classList.toggle("dark", theme === "dark");
-    root.style.colorScheme = theme;
-  }, [settingsDraft?.theme]);
+    const theme = settingsDraft?.theme || "light";
+
+    const customTheme = settingsDraft?.customThemes?.find(t => t.id === theme);
+
+    let styleEl = document.getElementById("custom-theme-style");
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = "custom-theme-style";
+      document.head.appendChild(styleEl);
+    }
+
+    if (customTheme) {
+      root.classList.remove("dark");
+      // We inject the custom variables into the root
+      styleEl.innerHTML = `
+            :root {
+                ${customTheme.cssVars}
+            }
+        `;
+      root.style.colorScheme = "normal";
+    } else {
+      styleEl.innerHTML = "";
+      root.classList.toggle("dark", theme === "dark");
+      root.style.colorScheme = theme === "dark" ? "dark" : "light";
+    }
+  }, [settingsDraft?.theme, settingsDraft?.customThemes]);
 
   useEffect(() => {
     timerGetState()
@@ -699,7 +720,7 @@ export default function App() {
                     <p className="text-sm text-muted-foreground">Delete all sessions, projects, tags, and restore default settings.</p>
                   </div>
                   <div className="p-6 pt-0">
-                    <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 h-9 px-4 py-2" 
+                    <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 h-9 px-4 py-2"
                       onClick={onResetAllData} disabled={actionBusy}>
                       {actionBusy ? "Working..." : "Reset Everything"}
                     </button>
