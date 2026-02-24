@@ -13,7 +13,7 @@
     "verify:full": "npm run test:run && npm run build && npm run version:check && npm run fmt:rust:check && npm run test:rust && npm run tauri build -- --bundles dmg",
     "verify:twice": "npm run verify:full && npm run verify:full",
     "preview": "vite preview",
-    "tauri": "tauri",
+    "tauri": "node ./scripts/tauri-with-pp.mjs",
     "install:dmg": "./scripts/install_dmg.sh",
     "build:install": "npm run tauri build && npm run install:dmg",
     "version:set": "node ./scripts/set_version.mjs",

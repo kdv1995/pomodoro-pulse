@@ -42,6 +42,11 @@ pub fn run() {
                     eprintln!("remote control startup warning: {error}");
                 }
             }
+
+            // Install/update bundled standalone `pp` CLI and register PATH.
+            if let Err(error) = auto_install_pp_cli(app.handle()) {
+                eprintln!("pp cli auto-install warning: {error}");
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

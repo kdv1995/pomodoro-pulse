@@ -32,6 +32,7 @@ include!("core/models.rs");
 include!("data/storage.rs");
 include!("core/timer.rs");
 include!("features/remote.rs");
+include!("features/cli_installer.rs");
 include!("features/analytics.rs");
 include!("app/commands.rs");
 include!("app/bootstrap.rs");

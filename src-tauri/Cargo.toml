@@ -4,6 +4,7 @@ version = "0.1.7"
 description = "Pomodoro analytics app"
 authors = ["kdv1995", "doffyso"]
 edition = "2021"
+default-run = "Pomodoro"
 
 [lib]
 name = "tauri_app_lib"
