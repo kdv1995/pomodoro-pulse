@@ -211,6 +211,33 @@ export default function App() {
     }
   }, [timer?.phase]);
 
+  // Keep countdown moving in the UI between backend state events.
+  useEffect(() => {
+    if (!timer?.isRunning || !timer.targetEndsAt) {
+      return;
+    }
+
+    const updateRemaining = () => {
+      const now = Math.floor(Date.now() / 1000);
+      setTimer((current) => {
+        if (!current || !current.isRunning || !current.targetEndsAt) {
+          return current;
+        }
+        const nextRemaining = Math.max(0, current.targetEndsAt - now);
+        if (nextRemaining === current.remainingSeconds) {
+          return current;
+        }
+        return { ...current, remainingSeconds: nextRemaining };
+      });
+    };
+
+    updateRemaining();
+    const intervalId = window.setInterval(updateRemaining, 250);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [timer?.isRunning, timer?.targetEndsAt]);
+
   useEffect(() => {
     let unlistenState: (() => void) | undefined;
     let unlistenPhase: (() => void) | undefined;

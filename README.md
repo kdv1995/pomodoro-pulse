@@ -134,6 +134,8 @@ You can control the timer from terminal using the standalone `pp` binary (Rust, 
 8. Use one of:
    - `pp status`
    - `pp start`
+   - `pp resume`
+   - `pp watch` (or `pp live`, exit with `q` or `Ctrl+C`)
    - `pp skip`
    - `pp stop`
 
