@@ -70,6 +70,8 @@ pub fn run() {
             reset_all_data,
             session_history,
             get_local_ip,
+            pp_cli_status,
+            pp_cli_uninstall,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

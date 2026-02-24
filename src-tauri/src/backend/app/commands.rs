@@ -487,3 +487,13 @@ fn get_local_ip() -> Result<String, String> {
         .to_string())
 }
 
+#[tauri::command]
+fn pp_cli_status(app: AppHandle) -> AppResult<PpCliStatus> {
+    pp_cli_status_inner(&app)
+}
+
+#[tauri::command]
+fn pp_cli_uninstall(app: AppHandle) -> AppResult<PpCliStatus> {
+    pp_cli_uninstall_inner(&app)
+}
+

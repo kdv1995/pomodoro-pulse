@@ -134,6 +134,13 @@ export interface ResetAllResult {
   timer: TimerState;
 }
 
+export interface CliInstallStatus {
+  binaryInstalled: boolean;
+  pathConfigured: boolean;
+  installDir: string;
+  binaryPath: string;
+}
+
 export interface PhaseCompletedEvent {
   completedPhase: TimerPhase;
   nextPhase: TimerPhase;
