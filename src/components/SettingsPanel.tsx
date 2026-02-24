@@ -8,6 +8,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import CliIntegrationCard from "@/components/CliIntegrationCard";
 
 function hexToHsl(hex: string): string {
     let r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -35,7 +36,6 @@ interface SettingsPanelProps {
 }
 
 export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPanelProps) {
-    if (!settings) return null;
     const [localIp, setLocalIp] = useState("YOUR_LOCAL_IP");
 
     const [editThemeId, setEditThemeId] = useState<string | null>(null);
@@ -46,6 +46,8 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
     const [newThemeMutedFg, setNewThemeMutedFg] = useState("#86868b");
     const [newThemeAccent, setNewThemeAccent] = useState("#27272a");
     const [newThemeBorder, setNewThemeBorder] = useState("#3f3f46");
+
+    if (!settings) return null;
 
     useEffect(() => {
         let active = true;
@@ -402,6 +404,8 @@ export default function SettingsPanel({ settings, onUpdate, onSave }: SettingsPa
                         </div>
                     </div>
                 </div>
+
+                <CliIntegrationCard />
 
                 <div className="pt-4">
                     <Button className="w-full" onClick={onSave}>

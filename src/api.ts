@@ -6,6 +6,7 @@ import type {
   AnalyticsSummary,
   AppSettings,
   AppSettingsPatch,
+  CliInstallStatus,
   ExportRange,
   ExportResult,
   Project,
@@ -81,6 +82,14 @@ export async function settingsUpdate(patch: AppSettingsPatch) {
 
 export async function resetAllData() {
   return invoke<ResetAllResult>("reset_all_data");
+}
+
+export async function ppCliStatus() {
+  return invoke<CliInstallStatus>("pp_cli_status");
+}
+
+export async function ppCliUninstall() {
+  return invoke<CliInstallStatus>("pp_cli_uninstall");
 }
 
 async function writeExport(
