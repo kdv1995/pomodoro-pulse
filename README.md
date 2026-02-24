@@ -115,3 +115,45 @@ You can optionally control the timer from your iPhone using a local web page ser
 3. On iPhone Safari open: `http://YOUR_MAC_IP:PORT/?token=TOKEN`
 
 Your Mac and iPhone must be on the same Wi‑Fi, and the app must be running.
+
+## CLI Remote Control (HTTP)
+
+You can control the timer from terminal using the standalone `pp` binary (Rust, no npm runtime required).
+
+1. In app Settings, enable "iPhone Remote Control (LAN)".
+2. Copy the remote token from Settings.
+3. Install/update the app using the regular installer.
+4. On first app launch, `pp` is auto-installed to:
+   - Windows: `%USERPROFILE%\.local\bin\pp.exe`
+   - macOS/Linux: `~/.local/bin/pp`
+5. The app also auto-registers that directory in your user `PATH`.
+6. Open a new terminal session.
+7. Save token and port once:
+   - `pp token YOUR_TOKEN`
+   - `pp port 48484`
+8. Use one of:
+   - `pp status`
+   - `pp start`
+   - `pp skip`
+   - `pp stop`
+
+Manual build for local development:
+
+```bash
+cargo build --manifest-path src-tauri/Cargo.toml --bin pp --release
+```
+
+Direct run without PATH setup:
+
+```bash
+# Windows (PowerShell)
+.\src-tauri\target\release\pp.exe help
+
+# macOS/Linux
+./src-tauri/target/release/pp help
+```
+
+Config is stored in:
+
+- Windows: `%USERPROFILE%\.pomodoro-pulse-pp.json`
+- macOS/Linux: `~/.pomodoro-pulse-pp.json`
