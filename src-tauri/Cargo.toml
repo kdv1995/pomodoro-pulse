@@ -15,6 +15,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
+crossterm = "0.29"
 httparse = "1"
 rand = "0.8"
 rusqlite = { version = "0.32", features = ["bundled"] }
