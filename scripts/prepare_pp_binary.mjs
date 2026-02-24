@@ -88,12 +88,25 @@ function main() {
       "release",
       "pp",
     );
-    const output = path.join(binariesDir, "pp");
+    const universalDir = path.join(
+      repoRoot,
+      "src-tauri",
+      "target",
+      "universal-apple-darwin",
+      "release",
+    );
+    const universalOutput = path.join(universalDir, "pp");
+    const bundledOutput = path.join(binariesDir, "pp");
+
+    mkdirSync(universalDir, { recursive: true });
     ensureSourceExists(arm);
     ensureSourceExists(intel);
-    run("lipo", ["-create", "-output", output, arm, intel]);
-    chmodSync(output, 0o755);
-    console.log(`Prepared bundled pp binary: ${output}`);
+    run("lipo", ["-create", "-output", universalOutput, arm, intel]);
+    copyFileSync(universalOutput, bundledOutput);
+    chmodSync(universalOutput, 0o755);
+    chmodSync(bundledOutput, 0o755);
+    console.log(`Prepared universal pp binary: ${universalOutput}`);
+    console.log(`Prepared bundled pp binary: ${bundledOutput}`);
     return;
   }
 
